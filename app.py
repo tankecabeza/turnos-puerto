@@ -19,7 +19,6 @@ st.markdown("""
     .stButton>button:hover { background-color: #EAB200; color: black; }
     .stDownloadButton>button { background-color: #EAB200; color: black; }
     .stDownloadButton>button:hover { background-color: #CBA000; }
-    .dataframe { font-size: 14px !important; text-align: center; }
     div[data-testid="stTabs"] button { font-size: 16px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
@@ -97,10 +96,10 @@ except Exception as e:
 tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plantilla"])
 
 # ------------------------------------------
-# PESTAÑA 2: CONFIGURACIÓN (Oculta por defecto para limpieza)
+# PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA (Oculta)
 # ------------------------------------------
 with tab_plantilla:
-    st.info("💡 Edita los TIPs, Nombres u Orden. Los cambios se guardan para todos.")
+    st.info("💡 Usa esta tabla solo para añadir compañeros nuevos o editar errores en los TIPs. Los cambios se guardan para todos.")
     
     df_plantilla = st.session_state.efectivos.copy()
     
@@ -142,7 +141,6 @@ with tab_diario:
     col3, col4 = st.columns(2)
     intervalo_horas = col3.selectbox("⏳ Rotación cada...", [2, 3, 4], format_func=lambda x: f"{x} Horas")
     
-    # Lógica Dinámica de Puestos según las horas
     if intervalo_horas == 2:
         def_puestos = "PUERTAS, POSTA, ROMA"
     elif intervalo_horas == 3:
@@ -153,31 +151,36 @@ with tab_diario:
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
 
+    # INTERFAZ 100% MÓVIL PARA ELEGIR COMPONENTES (Tarjetas, sin tablas)
     st.write("### 👥 Componentes de Hoy")
-    df_ui = st.session_state.efectivos.copy()
-    df_ui["Asiste"] = False
-    df_ui["Rol"] = "🛡️ Operativo" 
+    st.caption("Activa el interruptor de los que trabajan hoy para elegir su rol.")
+    
+    presentes_list = []
+    efectivos_ordenados = st.session_state.efectivos.sort_values("Orden")
+    
+    for _, row in efectivos_ordenados.iterrows():
+        with st.container(border=True):
+            col_izq, col_der = st.columns([0.8, 0.2])
+            with col_izq:
+                st.markdown(f"**{row['Nombre']}**")
+                st.caption(f"TIP: {row['TIP']} | Nº: {row['Orden']}")
+            with col_der:
+                asiste = st.toggle("Sí", key=f"tog_{row['TIP']}", label_visibility="collapsed")
+            
+            if asiste:
+                rol_elegido = st.selectbox(
+                    "Selecciona su Rol:", 
+                    ["🛡️ Operativo", "⭐ Jefe de Turno", "📝 Confronta"], 
+                    key=f"rol_{row['TIP']}"
+                )
+                presentes_list.append({
+                    "Nombre": row["Nombre"], 
+                    "TIP": row["TIP"], 
+                    "Rol": rol_elegido, 
+                    "Orden": row["Orden"]
+                })
 
-    def color_rol(val):
-        if val == '⭐ Jefe de Turno': return 'background-color: #FFB3B3; color: black;'
-        elif val == '📝 Confronta': return 'background-color: #B3D9FF; color: black;'
-        return ''
-
-    styled_df = df_ui.style.map(color_rol, subset=['Rol'])
-
-    edited_df = st.data_editor(
-        styled_df,
-        column_config={
-            "Asiste": st.column_config.CheckboxColumn(required=True, width="small"),
-            "Rol": st.column_config.SelectboxColumn(options=["🛡️ Operativo", "⭐ Jefe de Turno", "📝 Confronta"], required=True, width="medium"),
-            "Orden": st.column_config.NumberColumn(disabled=True, width="small"),
-            "TIP": st.column_config.TextColumn(disabled=True, width="small"),
-            "Nombre": st.column_config.TextColumn(disabled=True)
-        },
-        hide_index=True, use_container_width=True, height=300
-    )
-
-    presentes = edited_df[edited_df["Asiste"]].copy()
+    presentes = pd.DataFrame(presentes_list) if presentes_list else pd.DataFrame()
 
     # ==========================================
     # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN
@@ -193,28 +196,30 @@ with tab_diario:
         return franjas
 
     def crear_imagen_tabla(df, titulo):
-        fig, ax = plt.subplots(figsize=(10, 0.6 * len(df) + 1.5))
+        # AUMENTO RADICAL DEL TAMAÑO DE LA IMAGEN PARA EVITAR SOLAPAMIENTOS
+        fig, ax = plt.subplots(figsize=(16, 0.8 * len(df) + 2))
         ax.axis('off')
         ax.axis('tight')
         
-        # Estilos de la tabla
         table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', cellLoc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(11)
-        table.scale(1, 1.8)
+        table.set_fontsize(12) # Letra más grande y legible
         
-        # Colores institucionales
+        # AJUSTE INTELIGENTE: Adapta el ancho de cada columna a su texto más largo
+        table.auto_set_column_width(col=list(range(len(df.columns))))
+        table.scale(1, 2) # Da altura extra a las celdas para que respire el texto
+        
         for (row, col), cell in table.get_celld().items():
             if row == 0:
-                cell.set_facecolor('#006B4C') # Verde GC
+                cell.set_facecolor('#006B4C') 
                 cell.set_text_props(color='white', weight='bold')
             else:
                 if df.iloc[row-1]['Nº'] == '-':
-                    cell.set_facecolor('#E6F0EC') # Resaltar Jefes
+                    cell.set_facecolor('#E6F0EC') 
                 else:
                     cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F8F9FA')
         
-        plt.title(titulo, fontweight="bold", fontsize=14, color="#006B4C", pad=20)
+        plt.title(titulo, fontweight="bold", fontsize=16, color="#006B4C", pad=20)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
@@ -229,6 +234,7 @@ with tab_diario:
         
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
+            st.caption("Revisa la asignación matemática (puedes corregir el número a mano).")
             operativos["Ultimo_Maximo"] = operativos["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
             operativos = operativos.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
             operativos["Nº Asignado"] = range(num_ops, 0, -1)
@@ -285,17 +291,15 @@ with tab_diario:
                     st.write("### 📸 Imagen para WhatsApp")
                     img_buffer = crear_imagen_tabla(df_final, titulo_cuadrante)
                     
-                    col_dl1, col_dl2 = st.columns([1, 1])
-                    with col_dl1:
-                        st.download_button(
-                            label="📥 DESCARGAR IMAGEN (PNG)",
-                            data=img_buffer,
-                            file_name=f"Cuadrante_{fecha_servicio}.png",
-                            mime="image/png"
-                        )
+                    st.download_button(
+                        label="📥 DESCARGAR IMAGEN (PNG)",
+                        data=img_buffer,
+                        file_name=f"Cuadrante_{fecha_servicio}.png",
+                        mime="image/png"
+                    )
                         
                     st.write("### 📝 Texto para Novedades")
                     st.text_area("Copia el texto:", value=texto, height=200)
                     
         else:
-            st.info("Selecciona al menos 1 Operativo.")
+            st.info("Selecciona al menos 1 Operativo para rotar los puestos.")
