@@ -3,22 +3,28 @@ import pandas as pd
 from datetime import date, datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
+import matplotlib.pyplot as plt
+import io
 
 # ==========================================
-# 1. CONFIGURACIÓN VISUAL (Móvil-First)
+# 1. CONFIGURACIÓN VISUAL Y UX (App-First)
 # ==========================================
-st.set_page_config(page_title="Gestor de Turnos GC", layout="centered")
+st.set_page_config(page_title="Gestor de Turnos GC", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
+    /* Colores y diseño fluido tipo App */
     [data-testid="stHeader"] { background-color: #006B4C; }
-    .stButton>button { background-color: #EAB200; color: black; font-weight: bold; width: 100%; border-radius: 8px;}
-    .stButton>button:hover { background-color: #CBA000; }
+    .stButton>button { background-color: #006B4C; color: white; font-weight: bold; width: 100%; border-radius: 8px; padding: 12px; border: none;}
+    .stButton>button:hover { background-color: #EAB200; color: black; }
+    .stDownloadButton>button { background-color: #EAB200; color: black; }
+    .stDownloadButton>button:hover { background-color: #CBA000; }
     .dataframe { font-size: 14px !important; text-align: center; }
+    div[data-testid="stTabs"] button { font-size: 16px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ Generador Táctico (Nube)")
+st.title("🛡️ Táctico GC")
 
 # ==========================================
 # 2. CONEXIÓN A FIREBASE Y SINCRONIZACIÓN
@@ -82,145 +88,214 @@ try:
         st.session_state.historial = memoria_guardada
 
 except Exception as e:
-    st.error(f"❌ Error en la conexión a la base de datos: {e}")
+    st.error(f"❌ Error de conexión: {e}")
     st.stop()
 
 # ==========================================
-# 3. INTERFAZ DE SELECCIÓN Y CONFIGURACIÓN
+# 3. INTERFAZ TIPO APP (Pestañas)
 # ==========================================
-col1, col2 = st.columns(2)
-fecha_servicio = col1.date_input("📅 Fecha", value=date.today())
-tipo_turno = col2.radio("⏱️ Turno", ["Mañana", "Noche"], horizontal=True)
+tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plantilla"])
 
-col3, col4 = st.columns(2)
-intervalo_horas = col3.selectbox("⏳ Rotación cada...", [2, 3, 4], format_func=lambda x: f"{x} Horas")
-puestos_input = col4.text_input("📍 Puestos a rotar (comas)", "PUERTAS, POSTA, ROMA")
-lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
-
-# ==========================================
-# 4. TABLA INTERACTIVA DE COMPONENTES
-# ==========================================
-st.subheader("👥 1. Componentes y Roles")
-st.info("Haz doble clic en cualquier TIP, Nombre u Orden para modificarlo. Usa la última fila vacía para añadir compañeros. Guarda los cambios para que se reflejen a todos.")
-
-df_ui = st.session_state.efectivos.copy()
-df_ui["Asiste"] = False
-# Emojis integrados para que nunca fallen en los desplegables de móviles
-df_ui["Rol"] = "🛡️ Operativo" 
-
-def color_rol(val):
-    if val == '⭐ Jefe de Turno':
-        return 'background-color: #FFB3B3; color: black; font-weight: bold;'
-    elif val == '📝 Confronta':
-        return 'background-color: #B3D9FF; color: black; font-weight: bold;'
-    return ''
-
-styled_df = df_ui.style.map(color_rol, subset=['Rol'])
-
-edited_df = st.data_editor(
-    styled_df,
-    column_config={
-        "Asiste": st.column_config.CheckboxColumn(required=True, width="small"),
-        "Rol": st.column_config.SelectboxColumn(options=["🛡️ Operativo", "⭐ Jefe de Turno", "📝 Confronta"], required=True, width="medium"),
-        "Orden": st.column_config.NumberColumn(required=True, width="small"),
-        "TIP": st.column_config.TextColumn(required=True, width="small"),
-        "Nombre": st.column_config.TextColumn(required=True)
-    },
-    hide_index=True, use_container_width=True, height=380, num_rows="dynamic"
-)
-
-if st.button("💾 Guardar cambios en la plantilla base (Nube)"):
-    nueva_plantilla = edited_df[["TIP", "Nombre", "Orden"]].dropna(subset=["Nombre", "TIP"]).copy()
-    nueva_plantilla["Orden"] = pd.to_numeric(nueva_plantilla["Orden"], errors='coerce').fillna(999).astype(int)
-    nueva_plantilla = nueva_plantilla.sort_values("Orden").reset_index(drop=True)
+# ------------------------------------------
+# PESTAÑA 2: CONFIGURACIÓN (Oculta por defecto para limpieza)
+# ------------------------------------------
+with tab_plantilla:
+    st.info("💡 Edita los TIPs, Nombres u Orden. Los cambios se guardan para todos.")
     
-    guardar_plantilla(nueva_plantilla)
-    st.session_state.efectivos = nueva_plantilla
+    df_plantilla = st.session_state.efectivos.copy()
     
-    for _, row in nueva_plantilla.iterrows():
-        if row["Nombre"] not in st.session_state.historial:
-            st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
-    guardar_memoria(st.session_state.historial)
-    
-    st.success("✅ Plantilla actualizada en la nube. Los cambios ya son visibles para todos.")
-    st.rerun()
+    plantilla_editada = st.data_editor(
+        df_plantilla,
+        column_config={
+            "Orden": st.column_config.NumberColumn(required=True, width="small"),
+            "TIP": st.column_config.TextColumn(required=True, width="small"),
+            "Nombre": st.column_config.TextColumn(required=True)
+        },
+        hide_index=True, use_container_width=True, height=450, num_rows="dynamic"
+    )
 
-presentes = edited_df[edited_df["Asiste"]].copy()
-
-# ==========================================
-# 5. MOTOR MATEMÁTICO (FRANJAS Y ROTACIÓN)
-# ==========================================
-def calcular_franjas(turno, intervalo):
-    start = 7 if turno == "Mañana" else 19
-    slots = int(12 / intervalo)
-    franjas = []
-    for i in range(slots):
-        h_inicio = (start + (i * intervalo)) % 24
-        h_fin = (start + ((i + 1) * intervalo)) % 24
-        franjas.append(f"{h_inicio:02d}/{h_fin:02d}")
-    return franjas
-
-if not presentes.empty:
-    operativos = presentes[presentes["Rol"] == "🛡️ Operativo"].copy()
-    fijos = presentes[presentes["Rol"] != "🛡️ Operativo"].copy()
-    num_ops = len(operativos)
-    
-    if num_ops > 0:
-        st.subheader("🔢 2. Asignación (Automática / Editable)")
-        operativos["Ultimo_Maximo"] = operativos["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
-        operativos = operativos.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
-        operativos["Nº Asignado"] = range(num_ops, 0, -1)
+    if st.button("💾 Guardar Plantilla en la Nube"):
+        nueva_plantilla = plantilla_editada.dropna(subset=["Nombre", "TIP"]).copy()
+        nueva_plantilla["Orden"] = pd.to_numeric(nueva_plantilla["Orden"], errors='coerce').fillna(999).astype(int)
+        nueva_plantilla = nueva_plantilla.sort_values("Orden").reset_index(drop=True)
         
-        numeros_editados = st.data_editor(
-            operativos[["Nombre", "Nº Asignado"]].sort_values("Nº Asignado", ascending=False),
-            hide_index=True, use_container_width=True
-        )
+        guardar_plantilla(nueva_plantilla)
+        st.session_state.efectivos = nueva_plantilla
         
-        asignados_list = numeros_editados["Nº Asignado"].tolist()
-        if len(set(asignados_list)) != num_ops or any(n < 1 or n > num_ops for n in asignados_list):
-            st.error(f"¡Error! Los números deben ir del 1 al {num_ops} sin repetirse.")
-        else:
-            if st.button("🚀 Confirmar Rotación y Generar Puestos"):
-                nombre_max = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]["Nombre"]
-                
-                st.session_state.historial[nombre_max] = fecha_servicio
-                guardar_memoria(st.session_state.historial)
-                
-                franjas_calculadas = calcular_franjas(tipo_turno, intervalo_horas)
-                texto = f"📋 *CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}*\n\n"
-                
-                for _, f in fijos.iterrows():
-                    texto += f"🔹 *{f['Rol']}*: {f['Nombre']} ({f['TIP']})\n"
-                if not fijos.empty: texto += "\n"
-                
-                cuadrante_final = []
-                for _, f in fijos.iterrows():
-                    cuadrante_final.append({"Nº": "-", "TIP": f['TIP'], "Nombre": f['Nombre'], "Rol": f['Rol']})
+        for _, row in nueva_plantilla.iterrows():
+            if row["Nombre"] not in st.session_state.historial:
+                st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
+        guardar_memoria(st.session_state.historial)
+        
+        st.success("✅ Plantilla sincronizada.")
+        st.rerun()
 
-                for _, row in numeros_editados.sort_values("Nº Asignado").iterrows():
-                    tip_op = operativos[operativos["Nombre"] == row["Nombre"]].iloc[0]["TIP"]
-                    n_asignado = row['Nº Asignado']
-                    
-                    texto += f"🔸 *Nº {n_asignado} - {row['Nombre']}* ({tip_op})\n"
-                    
-                    fila_op = {"Nº": n_asignado, "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "OPERATIVO"}
-                    
-                    for idx, h in enumerate(franjas_calculadas):
-                        puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
-                        fila_op[h] = puesto
-                        texto += f"  🕒 {h}: {puesto}\n"
-                    
-                    cuadrante_final.append(fila_op)
-                    texto += "\n"
-                
-                st.subheader("✏️ Visualización Rápida")
-                df_final = pd.DataFrame(cuadrante_final)
-                st.dataframe(df_final, hide_index=True)
+# ------------------------------------------
+# PESTAÑA 1: USO DIARIO (Pantalla Principal)
+# ------------------------------------------
+with tab_diario:
+    # Controles compactos
+    col1, col2 = st.columns(2)
+    fecha_servicio = col1.date_input("📅 Fecha", value=date.today())
+    tipo_turno = col2.radio("⏱️ Turno", ["Mañana", "Noche"], horizontal=True)
 
-                st.subheader("📱 Texto para Novedades (WhatsApp)")
-                st.text_area("Copia el texto (con formato negritas):", value=texto, height=350)
-                st.success(f"☁️ Rotación guardada en Firebase. **{nombre_max}** pasa al final de la cola.")
+    col3, col4 = st.columns(2)
+    intervalo_horas = col3.selectbox("⏳ Rotación cada...", [2, 3, 4], format_func=lambda x: f"{x} Horas")
+    
+    # Lógica Dinámica de Puestos según las horas
+    if intervalo_horas == 2:
+        def_puestos = "PUERTAS, POSTA, ROMA"
+    elif intervalo_horas == 3:
+        def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
     else:
-        st.info("Debe haber al menos 1 Operativo seleccionado para generar la rotación.")
-else:
-    st.info("Selecciona los guardias que asisten hoy marcando la casilla 'Asiste'.")
+        def_puestos = "PUERTAS, POSTA, ROMA"
+        
+    puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
+    lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
+
+    st.write("### 👥 Componentes de Hoy")
+    df_ui = st.session_state.efectivos.copy()
+    df_ui["Asiste"] = False
+    df_ui["Rol"] = "🛡️ Operativo" 
+
+    def color_rol(val):
+        if val == '⭐ Jefe de Turno': return 'background-color: #FFB3B3; color: black;'
+        elif val == '📝 Confronta': return 'background-color: #B3D9FF; color: black;'
+        return ''
+
+    styled_df = df_ui.style.map(color_rol, subset=['Rol'])
+
+    edited_df = st.data_editor(
+        styled_df,
+        column_config={
+            "Asiste": st.column_config.CheckboxColumn(required=True, width="small"),
+            "Rol": st.column_config.SelectboxColumn(options=["🛡️ Operativo", "⭐ Jefe de Turno", "📝 Confronta"], required=True, width="medium"),
+            "Orden": st.column_config.NumberColumn(disabled=True, width="small"),
+            "TIP": st.column_config.TextColumn(disabled=True, width="small"),
+            "Nombre": st.column_config.TextColumn(disabled=True)
+        },
+        hide_index=True, use_container_width=True, height=300
+    )
+
+    presentes = edited_df[edited_df["Asiste"]].copy()
+
+    # ==========================================
+    # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN
+    # ==========================================
+    def calcular_franjas(turno, intervalo):
+        start = 7 if turno == "Mañana" else 19
+        slots = int(12 / intervalo)
+        franjas = []
+        for i in range(slots):
+            h_inicio = (start + (i * intervalo)) % 24
+            h_fin = (start + ((i + 1) * intervalo)) % 24
+            franjas.append(f"{h_inicio:02d}/{h_fin:02d}")
+        return franjas
+
+    def crear_imagen_tabla(df, titulo):
+        fig, ax = plt.subplots(figsize=(10, 0.6 * len(df) + 1.5))
+        ax.axis('off')
+        ax.axis('tight')
+        
+        # Estilos de la tabla
+        table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', cellLoc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(11)
+        table.scale(1, 1.8)
+        
+        # Colores institucionales
+        for (row, col), cell in table.get_celld().items():
+            if row == 0:
+                cell.set_facecolor('#006B4C') # Verde GC
+                cell.set_text_props(color='white', weight='bold')
+            else:
+                if df.iloc[row-1]['Nº'] == '-':
+                    cell.set_facecolor('#E6F0EC') # Resaltar Jefes
+                else:
+                    cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F8F9FA')
+        
+        plt.title(titulo, fontweight="bold", fontsize=14, color="#006B4C", pad=20)
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
+        buf.seek(0)
+        plt.close()
+        return buf
+
+    if not presentes.empty:
+        operativos = presentes[presentes["Rol"] == "🛡️ Operativo"].copy()
+        fijos = presentes[presentes["Rol"] != "🛡️ Operativo"].copy()
+        num_ops = len(operativos)
+        
+        if num_ops > 0:
+            st.write("### 🔢 Asignación de Puestos")
+            operativos["Ultimo_Maximo"] = operativos["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
+            operativos = operativos.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
+            operativos["Nº Asignado"] = range(num_ops, 0, -1)
+            
+            numeros_editados = st.data_editor(
+                operativos[["Nombre", "Nº Asignado"]].sort_values("Nº Asignado", ascending=False),
+                hide_index=True, use_container_width=True
+            )
+            
+            asignados_list = numeros_editados["Nº Asignado"].tolist()
+            if len(set(asignados_list)) != num_ops or any(n < 1 or n > num_ops for n in asignados_list):
+                st.error(f"¡Error! Los números deben ir del 1 al {num_ops} sin repetirse.")
+            else:
+                if st.button("🚀 Confirmar Rotación y Generar", type="primary"):
+                    nombre_max = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]["Nombre"]
+                    
+                    st.session_state.historial[nombre_max] = fecha_servicio
+                    guardar_memoria(st.session_state.historial)
+                    
+                    franjas_calculadas = calcular_franjas(tipo_turno, intervalo_horas)
+                    titulo_cuadrante = f"CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}"
+                    texto = f"📋 *{titulo_cuadrante}*\n\n"
+                    
+                    for _, f in fijos.iterrows():
+                        texto += f"🔹 *{f['Rol']}*: {f['Nombre']} ({f['TIP']})\n"
+                    if not fijos.empty: texto += "\n"
+                    
+                    cuadrante_final = []
+                    for _, f in fijos.iterrows():
+                        fila_fija = {"Nº": "-", "TIP": f['TIP'], "Nombre": f['Nombre'], "Rol": f['Rol'].replace("🛡️ ", "").replace("⭐ ", "").replace("📝 ", "")}
+                        for h in franjas_calculadas: fila_fija[h] = "-"
+                        cuadrante_final.append(fila_fija)
+
+                    for _, row in numeros_editados.sort_values("Nº Asignado").iterrows():
+                        tip_op = operativos[operativos["Nombre"] == row["Nombre"]].iloc[0]["TIP"]
+                        n_asignado = row['Nº Asignado']
+                        
+                        texto += f"🔸 *Nº {n_asignado} - {row['Nombre']}* ({tip_op})\n"
+                        fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "OPERATIVO"}
+                        
+                        for idx, h in enumerate(franjas_calculadas):
+                            puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
+                            fila_op[h] = puesto
+                            texto += f"  🕒 {h}: {puesto}\n"
+                        
+                        cuadrante_final.append(fila_op)
+                        texto += "\n"
+                    
+                    df_final = pd.DataFrame(cuadrante_final)
+                    
+                    st.success(f"☁️ Guardado en Firebase. **{nombre_max}** pasa al final de la cola.")
+                    
+                    # Generar la imagen para descargar
+                    st.write("### 📸 Imagen para WhatsApp")
+                    img_buffer = crear_imagen_tabla(df_final, titulo_cuadrante)
+                    
+                    col_dl1, col_dl2 = st.columns([1, 1])
+                    with col_dl1:
+                        st.download_button(
+                            label="📥 DESCARGAR IMAGEN (PNG)",
+                            data=img_buffer,
+                            file_name=f"Cuadrante_{fecha_servicio}.png",
+                            mime="image/png"
+                        )
+                        
+                    st.write("### 📝 Texto para Novedades")
+                    st.text_area("Copia el texto:", value=texto, height=200)
+                    
+        else:
+            st.info("Selecciona al menos 1 Operativo.")
