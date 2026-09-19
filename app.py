@@ -133,7 +133,6 @@ with tab_plantilla:
 # PESTAÑA 1: USO DIARIO (Pantalla Principal)
 # ------------------------------------------
 with tab_diario:
-    # Controles compactos
     col1, col2 = st.columns(2)
     fecha_servicio = col1.date_input("📅 Fecha", value=date.today())
     tipo_turno = col2.radio("⏱️ Turno", ["Mañana", "Noche"], horizontal=True)
@@ -151,27 +150,27 @@ with tab_diario:
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
 
-    # INTERFAZ 100% MÓVIL PARA ELEGIR COMPONENTES (Tarjetas, sin tablas)
     st.write("### 👥 Componentes de Hoy")
     st.caption("Activa el interruptor de los que trabajan hoy para elegir su rol.")
     
     presentes_list = []
     efectivos_ordenados = st.session_state.efectivos.sort_values("Orden")
     
-    for _, row in efectivos_ordenados.iterrows():
+    # CORRECCIÓN: Usamos el índice 'i' para garantizar que las claves (keys) de los botones sean únicas e infalibles
+    for i, row in efectivos_ordenados.iterrows():
         with st.container(border=True):
             col_izq, col_der = st.columns([0.8, 0.2])
             with col_izq:
                 st.markdown(f"**{row['Nombre']}**")
                 st.caption(f"TIP: {row['TIP']} | Nº: {row['Orden']}")
             with col_der:
-                asiste = st.toggle("Sí", key=f"tog_{row['TIP']}", label_visibility="collapsed")
+                asiste = st.toggle("Sí", key=f"tog_{i}", label_visibility="collapsed")
             
             if asiste:
                 rol_elegido = st.selectbox(
                     "Selecciona su Rol:", 
                     ["🛡️ Operativo", "⭐ Jefe de Turno", "📝 Confronta"], 
-                    key=f"rol_{row['TIP']}"
+                    key=f"rol_{i}"
                 )
                 presentes_list.append({
                     "Nombre": row["Nombre"], 
@@ -196,18 +195,16 @@ with tab_diario:
         return franjas
 
     def crear_imagen_tabla(df, titulo):
-        # AUMENTO RADICAL DEL TAMAÑO DE LA IMAGEN PARA EVITAR SOLAPAMIENTOS
         fig, ax = plt.subplots(figsize=(16, 0.8 * len(df) + 2))
         ax.axis('off')
         ax.axis('tight')
         
         table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', cellLoc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(12) # Letra más grande y legible
+        table.set_fontsize(12)
         
-        # AJUSTE INTELIGENTE: Adapta el ancho de cada columna a su texto más largo
         table.auto_set_column_width(col=list(range(len(df.columns))))
-        table.scale(1, 2) # Da altura extra a las celdas para que respire el texto
+        table.scale(1, 2)
         
         for (row, col), cell in table.get_celld().items():
             if row == 0:
@@ -287,7 +284,6 @@ with tab_diario:
                     
                     st.success(f"☁️ Guardado en Firebase. **{nombre_max}** pasa al final de la cola.")
                     
-                    # Generar la imagen para descargar
                     st.write("### 📸 Imagen para WhatsApp")
                     img_buffer = crear_imagen_tabla(df_final, titulo_cuadrante)
                     
