@@ -181,7 +181,7 @@ with tab_diario:
     presentes = pd.DataFrame(presentes_list) if presentes_list else pd.DataFrame()
 
     # ==========================================
-    # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN BALANCEADA
+    # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN HD ANTISOLAPE
     # ==========================================
     def calcular_franjas(turno, intervalo):
         start = 7 if turno == "Mañana" else 19
@@ -196,43 +196,43 @@ with tab_diario:
     def crear_imagen_tabla(df, titulo):
         df_img = df.copy()
         if 'Nombre' in df_img.columns:
-            # Ancho de envoltura ajustado a 14 para que el nombre baje de forma limpia sin ensanchar demasiado
-            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=14)))
+            # Ancho de envoltura mayor (22) para que el nombre ocupe más espacio horizontal y evite solapes verticales
+            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=22)))
 
-        # Lienzo equilibrado: ancho optimizado (11.5) y altura vertical natural por fila
-        fig, ax = plt.subplots(figsize=(11.5, 0.85 * len(df) + 2.0))
+        # Lienzo amplio con altura proporcional generosa para evitar cualquier solapamiento
+        fig, ax = plt.subplots(figsize=(14, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
         
         table = ax.table(cellText=df_img.values, colLabels=df.columns, loc='center', cellLoc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(10)
+        table.set_fontsize(9.5)
         
-        # Anchos de columna proporcionales y compactos
-        col_widths = [0.07, 0.15, 0.28, 0.15] + [0.09] * (len(df.columns) - 4)
+        # Anchos de columna óptimos dando más protagonismo a la columna Nombre
+        col_widths = [0.06, 0.13, 0.38, 0.13] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
                 table.get_celld()[(0, col_idx)].set_width(width)
                 for r in range(1, len(df) + 1):
                     table.get_celld()[(r, col_idx)].set_width(width)
                     
-        # Escala vertical ideal para que las líneas respiren con holgura sin verse apretadas
-        table.scale(1, 2.3)
+        # Escala vertical holgada (3.2) para que las líneas multilínea respiren perfectamente
+        table.scale(1, 3.2)
         
         for (row, col), cell in table.get_celld().items():
             cell.set_edgecolor('#B0C4DE') 
             if row == 0:
                 cell.set_facecolor('#006B4C') 
-                cell.set_text_props(color='white', weight='bold', size=10.5)
+                cell.set_text_props(color='white', weight='bold', size=10)
             else:
                 if df.iloc[row-1]['Nº'] == '-':
                     cell.set_facecolor('#E6F0EC') 
-                    cell.set_text_props(weight='bold', size=10)
+                    cell.set_text_props(weight='bold', size=9.5)
                 else:
                     cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F4F6F5')
-                    cell.set_text_props(size=10)
+                    cell.set_text_props(size=9.5)
         
-        plt.title(titulo, fontweight="bold", fontsize=14, color="#006B4C", pad=15)
+        plt.title(titulo, fontweight="bold", fontsize=14, color="#006B4C", pad=20)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
