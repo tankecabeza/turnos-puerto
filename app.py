@@ -13,7 +13,6 @@ st.set_page_config(page_title="Gestor de Turnos GC", layout="centered", initial_
 
 st.markdown("""
     <style>
-    /* Colores y diseño fluido tipo App */
     [data-testid="stHeader"] { background-color: #006B4C; }
     .stButton>button { background-color: #006B4C; color: white; font-weight: bold; width: 100%; border-radius: 8px; padding: 12px; border: none;}
     .stButton>button:hover { background-color: #EAB200; color: black; }
@@ -96,7 +95,7 @@ except Exception as e:
 tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plantilla"])
 
 # ------------------------------------------
-# PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA (Oculta)
+# PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA
 # ------------------------------------------
 with tab_plantilla:
     st.info("💡 Usa esta tabla solo para añadir compañeros nuevos o editar errores en los TIPs. Los cambios se guardan para todos.")
@@ -130,7 +129,7 @@ with tab_plantilla:
         st.rerun()
 
 # ------------------------------------------
-# PESTAÑA 1: USO DIARIO (Pantalla Principal)
+# PESTAÑA 1: USO DIARIO
 # ------------------------------------------
 with tab_diario:
     col1, col2 = st.columns(2)
@@ -151,12 +150,11 @@ with tab_diario:
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
 
     st.write("### 👥 Componentes de Hoy")
-    st.caption("Activa el interruptor de los que trabajan hoy para elegir su rol.")
+    st.caption("Activa el interruptor de los que trabajan hoy y asigna su rol.")
     
     presentes_list = []
     efectivos_ordenados = st.session_state.efectivos.sort_values("Orden")
     
-    # CORRECCIÓN: Usamos el índice 'i' para garantizar que las claves (keys) de los botones sean únicas e infalibles
     for i, row in efectivos_ordenados.iterrows():
         with st.container(border=True):
             col_izq, col_der = st.columns([0.8, 0.2])
@@ -182,7 +180,7 @@ with tab_diario:
     presentes = pd.DataFrame(presentes_list) if presentes_list else pd.DataFrame()
 
     # ==========================================
-    # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN
+    # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN HD
     # ==========================================
     def calcular_franjas(turno, intervalo):
         start = 7 if turno == "Mañana" else 19
@@ -195,28 +193,39 @@ with tab_diario:
         return franjas
 
     def crear_imagen_tabla(df, titulo):
-        fig, ax = plt.subplots(figsize=(16, 0.8 * len(df) + 2))
+        # Lienzo amplio y equilibrado en alta definición (DPI 300)
+        fig, ax = plt.subplots(figsize=(14, 0.7 * len(df) + 2.2))
         ax.axis('off')
         ax.axis('tight')
         
         table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', cellLoc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(12)
+        table.set_fontsize(11)
         
-        table.auto_set_column_width(col=list(range(len(df.columns))))
-        table.scale(1, 2)
+        # Ajuste de anchos relativos óptimos para evitar solapes de nombres largos
+        col_widths = [0.08, 0.14, 0.32, 0.16] + [0.10] * (len(df.columns) - 4)
+        for col_idx, width in enumerate(col_widths):
+            if col_idx < len(df.columns):
+                table.get_celld()[(0, col_idx)].set_width(width)
+                for r in range(1, len(df) + 1):
+                    table.get_celld()[(r, col_idx)].set_width(width)
+                    
+        table.scale(1, 2.2) # Espaciado vertical cómodo para lectura móvil
         
         for (row, col), cell in table.get_celld().items():
+            cell.set_edgecolor('#CCCCCC') # Bordes grises limpios
             if row == 0:
-                cell.set_facecolor('#006B4C') 
-                cell.set_text_props(color='white', weight='bold')
+                cell.set_facecolor('#006B4C') # Verde Guardia Civil
+                cell.set_text_props(color='white', weight='bold', size=11)
             else:
                 if df.iloc[row-1]['Nº'] == '-':
-                    cell.set_facecolor('#E6F0EC') 
+                    cell.set_facecolor('#E6F0EC') # Resaltado suave para mandos
+                    cell.set_text_props(weight='bold', size=10)
                 else:
-                    cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F8F9FA')
+                    cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F4F6F5')
+                    cell.set_text_props(size=10)
         
-        plt.title(titulo, fontweight="bold", fontsize=16, color="#006B4C", pad=20)
+        plt.title(titulo, fontweight="bold", fontsize=15, color="#006B4C", pad=20)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
@@ -231,19 +240,40 @@ with tab_diario:
         
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            st.caption("Revisa la asignación matemática (puedes corregir el número a mano).")
+            st.caption("Propuesta automática basada en el historial. Usa los desplegables si necesitas cambiar el número de algún compañero.")
+            
             operativos["Ultimo_Maximo"] = operativos["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
             operativos = operativos.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
-            operativos["Nº Asignado"] = range(num_ops, 0, -1)
+            operativos["Sugerido"] = range(num_ops, 0, -1)
             
-            numeros_editados = st.data_editor(
-                operativos[["Nombre", "Nº Asignado"]].sort_values("Nº Asignado", ascending=False),
-                hide_index=True, use_container_width=True
-            )
+            asignaciones_usuario = []
+            numeros_disponibles = list(range(1, num_ops + 1))
             
+            for idx, row in operativos.iterrows():
+                with st.container(border=True):
+                    col_n1, col_n2 = st.columns([0.6, 0.4])
+                    with col_n1:
+                        st.markdown(f"**{row['Nombre']}**")
+                        st.caption(f"TIP: {row['TIP']}")
+                    with col_n2:
+                        default_idx = numeros_disponibles.index(row["Sugerido"]) if row["Sugerido"] in numeros_disponibles else 0
+                        n_asignado = st.selectbox(
+                            "Nº Asignado",
+                            options=numeros_disponibles,
+                            index=default_idx,
+                            key=f"num_op_{row['TIP']}_{idx}"
+                        )
+                    asignaciones_usuario.append({
+                        "Nombre": row["Nombre"],
+                        "TIP": row["TIP"],
+                        "Nº Asignado": n_asignado
+                    })
+            
+            numeros_editados = pd.DataFrame(asignaciones_usuario)
             asignados_list = numeros_editados["Nº Asignado"].tolist()
-            if len(set(asignados_list)) != num_ops or any(n < 1 or n > num_ops for n in asignados_list):
-                st.error(f"¡Error! Los números deben ir del 1 al {num_ops} sin repetirse.")
+            
+            if len(set(asignados_list)) != num_ops:
+                st.error("⚠️ ¡Atención! No puedes repetir el mismo número asignado entre distintos operativos.")
             else:
                 if st.button("🚀 Confirmar Rotación y Generar", type="primary"):
                     nombre_max = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]["Nombre"]
