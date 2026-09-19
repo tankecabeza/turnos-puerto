@@ -4,6 +4,7 @@ from datetime import date, datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
 import matplotlib.pyplot as plt
+import textwrap
 import io
 
 # ==========================================
@@ -180,7 +181,7 @@ with tab_diario:
     presentes = pd.DataFrame(presentes_list) if presentes_list else pd.DataFrame()
 
     # ==========================================
-    # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN HD
+    # 5. MOTOR MATEMÁTICO Y GENERADOR DE IMAGEN HD PERFECTA
     # ==========================================
     def calcular_franjas(turno, intervalo):
         start = 7 if turno == "Mañana" else 19
@@ -193,33 +194,37 @@ with tab_diario:
         return franjas
 
     def crear_imagen_tabla(df, titulo):
-        # Lienzo amplio y equilibrado en alta definición (DPI 300)
-        fig, ax = plt.subplots(figsize=(14, 0.7 * len(df) + 2.2))
+        # Creamos una copia y aplicamos salto de línea automático en los nombres largos
+        df_img = df.copy()
+        if 'Nombre' in df_img.columns:
+            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=18)))
+
+        fig, ax = plt.subplots(figsize=(15, 0.9 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
         
-        table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', cellLoc='center')
+        table = ax.table(cellText=df_img.values, colLabels=df_img.columns, loc='center', cellLoc='center')
         table.auto_set_font_size(False)
         table.set_fontsize(11)
         
-        # Ajuste de anchos relativos óptimos para evitar solapes de nombres largos
-        col_widths = [0.08, 0.14, 0.32, 0.16] + [0.10] * (len(df.columns) - 4)
+        # Anchos proporcionales limpios para evitar solapes
+        col_widths = [0.07, 0.13, 0.35, 0.15] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
                 table.get_celld()[(0, col_idx)].set_width(width)
                 for r in range(1, len(df) + 1):
                     table.get_celld()[(r, col_idx)].set_width(width)
                     
-        table.scale(1, 2.2) # Espaciado vertical cómodo para lectura móvil
+        table.scale(1, 2.5) # Espaciado vertical holgado para que quepan los nombres en dos líneas sin pisarse
         
         for (row, col), cell in table.get_celld().items():
-            cell.set_edgecolor('#CCCCCC') # Bordes grises limpios
+            cell.set_edgecolor('#B0C4DE') 
             if row == 0:
                 cell.set_facecolor('#006B4C') # Verde Guardia Civil
                 cell.set_text_props(color='white', weight='bold', size=11)
             else:
                 if df.iloc[row-1]['Nº'] == '-':
-                    cell.set_facecolor('#E6F0EC') # Resaltado suave para mandos
+                    cell.set_facecolor('#E6F0EC') # Resaltado suave para Jefes/Confronta
                     cell.set_text_props(weight='bold', size=10)
                 else:
                     cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F4F6F5')
@@ -240,8 +245,9 @@ with tab_diario:
         
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            st.caption("Propuesta automática basada en el historial. Usa los desplegables si necesitas cambiar el número de algún compañero.")
+            st.caption("Propuesta automática basada en el historial de la nube. Puedes ajustar el número mediante el desplegable.")
             
+            # Memoria histórica estricta: el que lleva más tiempo sin el número alto recibe el num_ops hoy
             operativos["Ultimo_Maximo"] = operativos["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
             operativos = operativos.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
             operativos["Sugerido"] = range(num_ops, 0, -1)
@@ -278,6 +284,7 @@ with tab_diario:
                 if st.button("🚀 Confirmar Rotación y Generar", type="primary"):
                     nombre_max = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]["Nombre"]
                     
+                    # Guardamos la fecha de hoy para el que se lleva el número máximo (pasa al final de la cola para el próximo día)
                     st.session_state.historial[nombre_max] = fecha_servicio
                     guardar_memoria(st.session_state.historial)
                     
