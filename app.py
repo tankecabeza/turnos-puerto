@@ -56,7 +56,7 @@ try:
         if doc.exists:
             df = pd.DataFrame(doc.to_dict()['efectivos'])
             if 'Categoria' not in df.columns:
-                df['Categoria'] = 'OPERATIVO'
+                df['Categoria'] = 'RESGUARDO FISCAL'
             return df
         return None
 
@@ -73,16 +73,16 @@ try:
         {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
         {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
         {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
-        # OPERATIVOS
-        {"Categoria": "OPERATIVO", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
-        {"Categoria": "OPERATIVO", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
-        {"Categoria": "OPERATIVO", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
-        {"Categoria": "OPERATIVO", "TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 4},
-        {"Categoria": "OPERATIVO", "TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 5},
-        {"Categoria": "OPERATIVO", "TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 6},
-        {"Categoria": "OPERATIVO", "TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 7},
-        {"Categoria": "OPERATIVO", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
-        {"Categoria": "OPERATIVO", "TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9}
+        # RESGUARDO FISCAL
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 4},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 5},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 6},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 7},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
+        {"Categoria": "RESGUARDO FISCAL", "TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9}
     ])
 
     if 'efectivos' not in st.session_state:
@@ -119,7 +119,7 @@ tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plant
 # PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA
 # ------------------------------------------
 with tab_plantilla:
-    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial.")
+    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial separada por categorías.")
     
     if st.button("🔄 Restaurar Plantilla Oficial (Sobrescribir)"):
         guardar_plantilla(plantilla_oficial)
@@ -135,7 +135,7 @@ with tab_plantilla:
     
     with st.expander("➕ AÑADIR NUEVO COMPONENTE", expanded=False):
         col_c, col_o = st.columns(2)
-        nueva_cat = col_c.radio("Categoría", ["JEFE DE TURNO", "OPERATIVO"])
+        nueva_cat = col_c.radio("Categoría", ["JEFE DE TURNO", "RESGUARDO FISCAL"])
         
         max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max()
         siguiente_orden = int(max_orden_actual + 1) if pd.notna(max_orden_actual) else 1
@@ -179,7 +179,7 @@ with tab_plantilla:
                     })
 
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno")
-    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'OPERATIVO'], "🛡️ Turno Fijo Guardia (Operativos)")
+    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)")
 
     if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
         nueva_plantilla = pd.DataFrame(editados)
@@ -214,7 +214,7 @@ with tab_diario:
     st.write("### 👥 Asignación de Roles")
     
     efectivos_global = st.session_state.efectivos.copy()
-    efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({'JEFE DE TURNO': 1, 'OPERATIVO': 2})
+    efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({'JEFE DE TURNO': 1, 'RESGUARDO FISCAL': 2})
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
@@ -224,10 +224,10 @@ with tab_diario:
     confrontas_seleccionados = st.multiselect("📝 Confronta", options=opciones_confronta)
     
     st.write("---")
-    st.write("🛡️ **Fuerza Operativa** (Activa los que entran en la rotación de puestos)")
+    st.write("🛡️ **Resguardo Fiscal** (Activa los componentes que entran en la rotación de puestos)")
     ops_seleccionados = []
     
-    df_operativos_solo = efectivos_global[efectivos_global['Categoria'] == 'OPERATIVO'].sort_values("Orden")
+    df_operativos_solo = efectivos_global[efectivos_global['Categoria'] == 'RESGUARDO FISCAL'].sort_values("Orden")
     
     for _, row in df_operativos_solo.iterrows():
         if row['Nombre'] not in jefes_seleccionados and row['Nombre'] not in confrontas_seleccionados:
@@ -359,7 +359,6 @@ with tab_diario:
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
                         
-                        # CLAVE ESTABLE: Esto arregla el fallo que no dejaba modificar manualmente
                         clave_unica = f"asig_{row['TIP']}_{fecha_servicio}"
                         
                         n_asignado = st.selectbox(
