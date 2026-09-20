@@ -54,31 +54,36 @@ try:
     def cargar_plantilla():
         doc = DOC_PLANTILLA.get()
         if doc.exists:
-            return pd.DataFrame(doc.to_dict()['efectivos'])
+            df = pd.DataFrame(doc.to_dict()['efectivos'])
+            if 'Categoria' not in df.columns:
+                df['Categoria'] = 'OPERATIVO'
+            return df
         return None
 
     def guardar_plantilla(df):
         DOC_PLANTILLA.set({'efectivos': df.to_dict('records')})
 
-    # PLANTILLA OFICIAL REQUERIDA
+    # PLANTILLA OFICIAL SEPARADA POR CATEGORÍAS
     plantilla_oficial = pd.DataFrame([
-        {"TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
-        {"TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
-        {"TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
-        {"TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
-        {"TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
-        {"TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
-        {"TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
-        {"TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
-        {"TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 9},
-        {"TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 10},
-        {"TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 11},
-        {"TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 12},
-        {"TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 13},
-        {"TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 14},
-        {"TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 15},
-        {"TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 16},
-        {"TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 17}
+        # MANDOS
+        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
+        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
+        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
+        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
+        {"Categoria": "MANDO", "TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
+        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
+        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
+        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
+        # OPERATIVOS
+        {"Categoria": "OPERATIVO", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
+        {"Categoria": "OPERATIVO", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
+        {"Categoria": "OPERATIVO", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
+        {"Categoria": "OPERATIVO", "TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 4},
+        {"Categoria": "OPERATIVO", "TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 5},
+        {"Categoria": "OPERATIVO", "TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 6},
+        {"Categoria": "OPERATIVO", "TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 7},
+        {"Categoria": "OPERATIVO", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
+        {"Categoria": "OPERATIVO", "TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9}
     ])
 
     if 'efectivos' not in st.session_state:
@@ -115,9 +120,8 @@ tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plant
 # PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA (Móvil)
 # ------------------------------------------
 with tab_plantilla:
-    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial.")
+    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial separada por categorías.")
     
-    # Botón para forzar la carga de los mandos en la nube
     if st.button("🔄 Restaurar Plantilla Oficial (Sobrescribir)"):
         guardar_plantilla(plantilla_oficial)
         st.session_state.efectivos = plantilla_oficial
@@ -131,41 +135,60 @@ with tab_plantilla:
     df_plantilla = st.session_state.efectivos.copy()
     
     with st.expander("➕ AÑADIR NUEVO COMPONENTE", expanded=False):
+        col_c, col_o = st.columns(2)
+        nueva_cat = col_c.radio("Categoría", ["MANDO", "OPERATIVO"])
+        
+        # Calcular el número siguiente disponible para esa categoría
+        max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max()
+        siguiente_orden = int(max_orden_actual + 1) if pd.notna(max_orden_actual) else 1
+        
+        nuevo_orden = col_o.number_input("Nº de Antigüedad", min_value=1, value=siguiente_orden)
+        
         col_n1, col_n2 = st.columns(2)
-        nuevo_nombre = col_n1.text_input("Nombre Completo (Nuevo)")
-        nuevo_tip = col_n2.text_input("TIP (Nuevo)")
-        nuevo_orden = st.number_input("Número de Antigüedad (Orden)", min_value=1, value=len(df_plantilla)+1)
+        nuevo_nombre = col_n1.text_input("Nombre Completo")
+        nuevo_tip = col_n2.text_input("TIP")
         
         if st.button("Añadir a la lista"):
             if nuevo_nombre and nuevo_tip:
-                nuevo_registro = pd.DataFrame([{"TIP": nuevo_tip, "Nombre": nuevo_nombre.upper(), "Orden": int(nuevo_orden)}])
+                nuevo_registro = pd.DataFrame([{"Categoria": nueva_cat, "TIP": nuevo_tip.upper(), "Nombre": nuevo_nombre.upper(), "Orden": int(nuevo_orden)}])
                 df_plantilla = pd.concat([df_plantilla, nuevo_registro], ignore_index=True)
                 st.session_state.efectivos = df_plantilla
-                st.success("Añadido temporalmente. Pulsa 'Guardar Cambios en la Nube' abajo para confirmar.")
+                st.success("Añadido temporalmente. Pulsa 'Guardar Cambios' abajo para confirmar.")
                 st.rerun()
 
     st.write("---")
     st.write("### 👥 Plantilla Actual")
-    
-    df_plantilla = df_plantilla.sort_values("Orden").reset_index(drop=True)
     editados = []
-    
-    for i, row in df_plantilla.iterrows():
-        with st.expander(f"{row['Orden']} - {row['Nombre']} ({row['TIP']})"):
-            c1, c2, c3 = st.columns([1, 2, 1])
-            e_orden = c1.number_input("Orden", value=int(row['Orden']), key=f"ord_{i}")
-            e_nombre = c2.text_input("Nombre", value=row['Nombre'], key=f"nom_{i}")
-            e_tip = c3.text_input("TIP", value=row['TIP'], key=f"tip_{i}")
-            
-            # Texto corregido según petición
-            eliminar = st.checkbox("Eliminar componente", key=f"del_{i}")
-            if not eliminar:
-                editados.append({"TIP": e_tip.upper(), "Nombre": e_nombre.upper(), "Orden": int(e_orden)})
+
+    # FUNCIÓN PARA RENDERIZAR TARJETAS INFALIBLES (Evita cruces de datos)
+    def renderizar_tarjetas(df_sub, titulo):
+        st.markdown(f"#### {titulo}")
+        df_sub = df_sub.sort_values("Orden").reset_index(drop=True)
+        for _, row in df_sub.iterrows():
+            # Usamos el TIP y Nombre original como CLAVE ÚNICA para evitar que Streamlit se confunda de celda
+            clave_unica = f"{row['Nombre']}_{row['TIP']}"
+            with st.expander(f"{row['Orden']} - {row['Nombre']} ({row['TIP']})"):
+                c1, c2, c3 = st.columns([1, 2, 1])
+                e_orden = c1.number_input("Orden", value=int(row['Orden']), key=f"ord_{clave_unica}")
+                e_nombre = c2.text_input("Nombre", value=row['Nombre'], key=f"nom_{clave_unica}")
+                e_tip = c3.text_input("TIP", value=row['TIP'], key=f"tip_{clave_unica}")
+                
+                eliminar = st.checkbox("Eliminar componente", key=f"del_{clave_unica}")
+                if not eliminar:
+                    editados.append({
+                        "Categoria": row['Categoria'], 
+                        "TIP": e_tip.upper(), 
+                        "Nombre": e_nombre.upper(), 
+                        "Orden": int(e_orden)
+                    })
+
+    # Mostrar las dos listas separadas
+    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'MANDO'], "⭐ Mandos")
+    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'OPERATIVO'], "🛡️ Turno Fijo Guardia (Operativos)")
 
     if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
         nueva_plantilla = pd.DataFrame(editados)
         if not nueva_plantilla.empty:
-            nueva_plantilla = nueva_plantilla.sort_values("Orden").reset_index(drop=True)
             guardar_plantilla(nueva_plantilla)
             st.session_state.efectivos = nueva_plantilla
             
@@ -184,21 +207,29 @@ with tab_diario:
     fecha_servicio = col1.date_input("📅 Fecha", value=date.today())
     tipo_turno = col2.radio("⏱️ Turno", ["Mañana", "Noche"], horizontal=True)
 
-    st.write("### 👥 Componentes de Hoy")
+    st.write("### 👥 Asignación de Roles")
     
-    efectivos_ordenados = st.session_state.efectivos.sort_values("Orden")
-    nombres_lista = efectivos_ordenados["Nombre"].tolist()
+    # LISTA GLOBAL: Para Jefes/Confronta se puede elegir a CUALQUIERA (Mando u Operativo)
+    efectivos_global = st.session_state.efectivos.copy()
     
-    # Desplegables separados para Mandos/Confronta
-    jefes_seleccionados = st.multiselect("⭐ Jefes de Turno", options=nombres_lista)
+    # Ordenamos la lista del desplegable para que salgan primero Mandos y luego Operativos
+    efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({'MANDO': 1, 'OPERATIVO': 2})
+    efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
+    nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    opciones_confronta = [n for n in nombres_lista if n not in jefes_seleccionados]
+    jefes_seleccionados = st.multiselect("⭐ Jefes de Turno", options=nombres_lista_global)
+    
+    opciones_confronta = [n for n in nombres_lista_global if n not in jefes_seleccionados]
     confrontas_seleccionados = st.multiselect("📝 Confronta", options=opciones_confronta)
     
-    st.write("🛡️ **Fuerza Operativa** (Activa los que entran en rotación)")
+    # LISTA DE ROTACIÓN: SOLO MUESTRA OPERATIVOS QUE NO ESTÉN DE JEFE/CONFRONTA
+    st.write("---")
+    st.write("🛡️ **Fuerza Operativa** (Activa los que entran en la rotación de puestos)")
     ops_seleccionados = []
     
-    for i, row in efectivos_ordenados.iterrows():
+    df_operativos_solo = efectivos_global[efectivos_global['Categoria'] == 'OPERATIVO'].sort_values("Orden")
+    
+    for _, row in df_operativos_solo.iterrows():
         if row['Nombre'] not in jefes_seleccionados and row['Nombre'] not in confrontas_seleccionados:
             with st.container(border=True):
                 col_izq, col_der = st.columns([0.8, 0.2])
@@ -206,13 +237,12 @@ with tab_diario:
                     st.markdown(f"**{row['Nombre']}**")
                     st.caption(f"TIP: {row['TIP']} | Nº Antigüedad: {row['Orden']}")
                 with col_der:
-                    if st.toggle("Sí", key=f"tog_{i}", label_visibility="collapsed"):
+                    if st.toggle("Sí", key=f"tog_{row['TIP']}", label_visibility="collapsed"):
                         ops_seleccionados.append(row)
 
     num_ops = len(ops_seleccionados)
     num_jefes = len(jefes_seleccionados)
     
-    # Automatización inteligente de 2 o 3 horas
     indice_defecto = 1 
     if num_ops == 3 and num_jefes >= 1:
         indice_defecto = 0
@@ -250,7 +280,6 @@ with tab_diario:
         if 'Nombre' in df_img.columns:
             df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=20)))
 
-        # Ajuste drástico de anchos para quitar el espacio en blanco de la columna Nombre
         fig, ax = plt.subplots(figsize=(12.5, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
@@ -259,7 +288,6 @@ with tab_diario:
         table.auto_set_font_size(False)
         table.set_fontsize(9.5)
         
-        # Columna Nombre (índice 2) más estrecha, Columna Rol (índice 3) más ancha
         col_widths = [0.06, 0.14, 0.32, 0.18] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
@@ -282,7 +310,6 @@ with tab_diario:
                     cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F4F6F5')
                     cell.set_text_props(size=9.5)
                 
-                # Forzar NEGRITA MAYÚSCULA en la columna de Roles (columna 3)
                 if df.columns[col] == 'Rol':
                     cell.set_text_props(weight='bold')
         
@@ -302,16 +329,13 @@ with tab_diario:
             df_ops = pd.DataFrame(ops_seleccionados)
             df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
             
-            # Orden estricto: Fecha más antigua, y si hay empate, el de mayor antigüedad real (Orden más bajo)
             df_ops = df_ops.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
-            
-            # Reparto correlativo del número más alto al más bajo
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
             asignaciones_usuario = []
             numeros_disponibles = list(range(1, num_ops + 1))
             
-            for idx, row in df_ops.iterrows():
+            for _, row in df_ops.iterrows():
                 with st.container(border=True):
                     col_n1, col_n2 = st.columns([0.6, 0.4])
                     with col_n1:
@@ -319,8 +343,8 @@ with tab_diario:
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
                         
-                        # Clave dinámica para evitar el bug de solapamiento de memoria de Streamlit
-                        clave_unica = f"num_op_{row['TIP']}_sug_{row['Sugerido']}_tot_{num_ops}"
+                        # Clave única reconstruida en cada ejecución para forzar el reinicio correcto
+                        clave_unica = f"num_{row['TIP']}_tot_{num_ops}_sug_{row['Sugerido']}_{datetime.now().strftime('%M%S')}"
                         
                         n_asignado = st.selectbox(
                             "Nº Asignado",
@@ -353,18 +377,17 @@ with tab_diario:
                 titulo_cuadrante = f"CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}"
                 
                 texto = f"{titulo_cuadrante}\n\n"
-                
                 cuadrante_final = []
                 
                 for nombre_jefe in jefes_seleccionados:
-                    tip_jefe = efectivos_ordenados[efectivos_ordenados["Nombre"] == nombre_jefe].iloc[0]["TIP"]
+                    tip_jefe = efectivos_global[efectivos_global["Nombre"] == nombre_jefe].iloc[0]["TIP"]
                     texto += f"JEFE DE TURNO: {nombre_jefe} ({tip_jefe})\n"
                     fila_fija = {"Nº": "-", "TIP": tip_jefe, "Nombre": nombre_jefe, "Rol": "JEFE DE TURNO"}
                     for h in franjas_img: fila_fija[h] = "-"
                     cuadrante_final.append(fila_fija)
                     
                 for nombre_conf in confrontas_seleccionados:
-                    tip_conf = efectivos_ordenados[efectivos_ordenados["Nombre"] == nombre_conf].iloc[0]["TIP"]
+                    tip_conf = efectivos_global[efectivos_global["Nombre"] == nombre_conf].iloc[0]["TIP"]
                     texto += f"CONFRONTA: {nombre_conf} ({tip_conf})\n"
                     fila_fija = {"Nº": "-", "TIP": tip_conf, "Nombre": nombre_conf, "Rol": "CONFRONTA"}
                     for h in franjas_img: fila_fija[h] = "-"
