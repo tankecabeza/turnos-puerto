@@ -117,7 +117,7 @@ except Exception as e:
 tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plantilla"])
 
 # ------------------------------------------
-# PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA (Móvil)
+# PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA
 # ------------------------------------------
 with tab_plantilla:
     st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial separada por categorías.")
@@ -138,7 +138,6 @@ with tab_plantilla:
         col_c, col_o = st.columns(2)
         nueva_cat = col_c.radio("Categoría", ["MANDO", "OPERATIVO"])
         
-        # Calcular el número siguiente disponible para esa categoría
         max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max()
         siguiente_orden = int(max_orden_actual + 1) if pd.notna(max_orden_actual) else 1
         
@@ -160,12 +159,10 @@ with tab_plantilla:
     st.write("### 👥 Plantilla Actual")
     editados = []
 
-    # FUNCIÓN PARA RENDERIZAR TARJETAS INFALIBLES (Evita cruces de datos)
     def renderizar_tarjetas(df_sub, titulo):
         st.markdown(f"#### {titulo}")
         df_sub = df_sub.sort_values("Orden").reset_index(drop=True)
         for _, row in df_sub.iterrows():
-            # Usamos el TIP y Nombre original como CLAVE ÚNICA para evitar que Streamlit se confunda de celda
             clave_unica = f"{row['Nombre']}_{row['TIP']}"
             with st.expander(f"{row['Orden']} - {row['Nombre']} ({row['TIP']})"):
                 c1, c2, c3 = st.columns([1, 2, 1])
@@ -182,7 +179,6 @@ with tab_plantilla:
                         "Orden": int(e_orden)
                     })
 
-    # Mostrar las dos listas separadas
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'MANDO'], "⭐ Mandos")
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'OPERATIVO'], "🛡️ Turno Fijo Guardia (Operativos)")
 
@@ -209,10 +205,7 @@ with tab_diario:
 
     st.write("### 👥 Asignación de Roles")
     
-    # LISTA GLOBAL: Para Jefes/Confronta se puede elegir a CUALQUIERA (Mando u Operativo)
     efectivos_global = st.session_state.efectivos.copy()
-    
-    # Ordenamos la lista del desplegable para que salgan primero Mandos y luego Operativos
     efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({'MANDO': 1, 'OPERATIVO': 2})
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
@@ -222,7 +215,6 @@ with tab_diario:
     opciones_confronta = [n for n in nombres_lista_global if n not in jefes_seleccionados]
     confrontas_seleccionados = st.multiselect("📝 Confronta", options=opciones_confronta)
     
-    # LISTA DE ROTACIÓN: SOLO MUESTRA OPERATIVOS QUE NO ESTÉN DE JEFE/CONFRONTA
     st.write("---")
     st.write("🛡️ **Fuerza Operativa** (Activa los que entran en la rotación de puestos)")
     ops_seleccionados = []
@@ -261,7 +253,7 @@ with tab_diario:
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
 
     # ==========================================
-    # 5. MOTOR MATEMÁTICO Y GENERADOR PRO
+    # 5. MOTOR MATEMÁTICO Y GENERADOR
     # ==========================================
     def calcular_franjas(turno, intervalo):
         start = 7 if turno == "Mañana" else 19
@@ -324,12 +316,29 @@ with tab_diario:
     if num_ops > 0 or num_jefes > 0 or len(confrontas_seleccionados) > 0:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            st.caption("Asignación matemática: El más antiguo (menor Nº de Orden) que lleve más tiempo sin el número alto.")
+            
+            # NUEVO TEXTO EXPLICATIVO
+            st.caption("Regla de Antigüedad: El más antiguo tiene el número más alto, salvo si lo tuvo la última vez que trabajó (pasa al 1).")
             
             df_ops = pd.DataFrame(ops_seleccionados)
             df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
             
-            df_ops = df_ops.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
+            # NUEVA LÓGICA DE ANTIGÜEDAD PURA
+            max_fecha = df_ops["Ultimo_Maximo"].max()
+            df_ops["Orden_Calculo"] = df_ops["Orden"]
+            
+            # Si alguien tiene un historial real, buscamos quién fue el último en tener el max
+            if max_fecha > date(2000, 1, 1):
+                penalizados = df_ops[df_ops["Ultimo_Maximo"] == max_fecha]
+                if not penalizados.empty:
+                    # El que lo tuvo la última vez es penalizado mandándolo al fondo (Orden altísimo)
+                    idx_penalizado = penalizados.index[0]
+                    df_ops.loc[idx_penalizado, "Orden_Calculo"] = 999999
+            
+            # Ordenamos por antigüedad, dejando al penalizado el último
+            df_ops = df_ops.sort_values(by="Orden_Calculo", ascending=True)
+            
+            # Reparto correlativo del número más alto al más bajo
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
             asignaciones_usuario = []
@@ -343,7 +352,6 @@ with tab_diario:
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
                         
-                        # Clave única reconstruida en cada ejecución para forzar el reinicio correcto
                         clave_unica = f"num_{row['TIP']}_tot_{num_ops}_sug_{row['Sugerido']}_{datetime.now().strftime('%M%S')}"
                         
                         n_asignado = st.selectbox(
