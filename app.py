@@ -63,7 +63,6 @@ try:
     def guardar_plantilla(df):
         DOC_PLANTILLA.set({'efectivos': df.to_dict('records')})
 
-    # PLANTILLA OFICIAL SEPARADA POR CATEGORÍAS
     plantilla_oficial = pd.DataFrame([
         # JEFES DE TURNO
         {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
@@ -120,7 +119,7 @@ tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plant
 # PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA
 # ------------------------------------------
 with tab_plantilla:
-    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial separada por categorías.")
+    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial.")
     
     if st.button("🔄 Restaurar Plantilla Oficial (Sobrescribir)"):
         guardar_plantilla(plantilla_oficial)
@@ -197,11 +196,11 @@ with tab_plantilla:
 
     st.write("---")
     st.write("### 🛠️ Opciones Avanzadas")
-    if st.button("🗑️ Resetear historial de rotaciones (Empezar de cero)"):
+    if st.button("🗑️ Resetear historial de rotaciones", key="reset_plantilla"):
         nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
         guardar_memoria(nuevo_historial)
         st.session_state.historial = nuevo_historial
-        st.success("✅ Historial de rotaciones borrado. Ahora la antigüedad pura mandará al 100%.")
+        st.success("✅ Historial de rotaciones borrado. Antigüedad pura al 100%.")
         st.rerun()
 
 # ------------------------------------------
@@ -279,9 +278,9 @@ with tab_diario:
     def crear_imagen_tabla(df, titulo):
         df_img = df.copy()
         if 'Nombre' in df_img.columns:
-            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=20)))
+            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=18)))
 
-        fig, ax = plt.subplots(figsize=(12.5, 1.1 * len(df) + 2.5))
+        fig, ax = plt.subplots(figsize=(11.0, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
         
@@ -289,7 +288,7 @@ with tab_diario:
         table.auto_set_font_size(False)
         table.set_fontsize(9.5)
         
-        col_widths = [0.06, 0.14, 0.32, 0.18] + [0.10] * (len(df.columns) - 4)
+        col_widths = [0.05, 0.13, 0.24, 0.18] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
                 table.get_celld()[(0, col_idx)].set_width(width)
@@ -325,8 +324,7 @@ with tab_diario:
     if num_ops > 0 or num_jefes > 0 or len(confrontas_seleccionados) > 0:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            
-            st.caption("Regla de Antigüedad: El más antiguo (Nº de Orden más bajo) tiene el número más alto, salvo si lo tuvo la última vez que trabajó.")
+            st.caption("Regla de Antigüedad: El más antiguo tiene el número más alto, salvo si lo tuvo la última vez que trabajó.")
             
             df_ops = pd.DataFrame(ops_seleccionados)
             df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
@@ -352,7 +350,6 @@ with tab_diario:
                     with col_n1:
                         st.markdown(f"**{row['Nombre']}**")
                         
-                        # MEMORIA VISUAL: Mostramos la fecha del último número alto o si ha sido penalizado
                         fecha_str = "Sin registro" if row["Ultimo_Maximo"] == date(2000, 1, 1) else row["Ultimo_Maximo"].strftime('%d/%m/%Y')
                         st.caption(f"Nº Antigüedad: {row['Orden']} | Último Nº Alto: {fecha_str}")
                         
@@ -361,7 +358,9 @@ with tab_diario:
 
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
-                        clave_unica = f"num_{row['TIP']}_tot_{num_ops}_sug_{row['Sugerido']}_{datetime.now().strftime('%M%S')}"
+                        
+                        # CLAVE ESTABLE: Esto arregla el fallo que no dejaba modificar manualmente
+                        clave_unica = f"asig_{row['TIP']}_{fecha_servicio}"
                         
                         n_asignado = st.selectbox(
                             "Nº Asignado",
@@ -456,3 +455,12 @@ with tab_diario:
             
     else:
         st.info("Selecciona componentes arriba para generar el cuadrante.")
+    
+    st.write("---")
+    st.write("### 🛠️ Opciones Avanzadas")
+    if st.button("🗑️ Resetear historial de rotaciones", key="reset_diario"):
+        nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
+        guardar_memoria(nuevo_historial)
+        st.session_state.historial = nuevo_historial
+        st.success("✅ Historial de rotaciones borrado. Antigüedad pura al 100%.")
+        st.rerun()
