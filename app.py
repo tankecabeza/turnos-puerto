@@ -278,11 +278,11 @@ with tab_diario:
     def crear_imagen_tabla(df, titulo):
         df_img = df.copy()
         if 'Nombre' in df_img.columns:
-            # Envolvemos el texto a 16 caracteres para que quede mucho más apretado y elimine el espacio blanco
-            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=16)))
+            # Aumentado el ancho a 22 para que nombres largos queden bien divididos en 2 líneas
+            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=22)))
 
-        # Lienzo más compacto (ancho 10.0 en lugar de 12.5) para agrupar todas las columnas
-        fig, ax = plt.subplots(figsize=(10.0, 1.1 * len(df) + 2.5))
+        # Lienzo ampliado a 11.5 para dar espacio extra a las columnas de Nombre y Rol
+        fig, ax = plt.subplots(figsize=(11.5, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
         
@@ -290,8 +290,8 @@ with tab_diario:
         table.auto_set_font_size(False)
         table.set_fontsize(9.5)
         
-        # Columna Nombre (índice 2) ajustada al 20% del ancho, igual que el Rol
-        col_widths = [0.06, 0.14, 0.20, 0.20] + [0.10] * (len(df.columns) - 4)
+        # Ampliados los porcentajes de Nombre (0.26) y Rol (0.21)
+        col_widths = [0.05, 0.12, 0.26, 0.21] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
                 table.get_celld()[(0, col_idx)].set_width(width)
@@ -341,7 +341,6 @@ with tab_diario:
                     idx_penalizado = penalizados.index[0]
                     df_ops.loc[idx_penalizado, "Orden_Calculo"] = 999999
             
-            # Ordenamos estrictamente por antigüedad matemática para hacer el reparto
             df_ops = df_ops.sort_values(by="Orden_Calculo", ascending=True)
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
@@ -363,8 +362,7 @@ with tab_diario:
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
                         
-                        # CLAVE ÚNICA LIMPIA: Evita que Streamlit memorice los 1s de errores pasados y fuerza el cálculo real, pero te deja cambiarlo
-                        clave_unica = f"turno_limpio_{row['TIP']}_{num_ops}_{fecha_servicio}"
+                        clave_unica = f"asig_{row['TIP']}_{fecha_servicio}"
                         
                         n_asignado = st.selectbox(
                             "Nº Asignado",
