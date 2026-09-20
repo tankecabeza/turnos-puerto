@@ -8,7 +8,7 @@ import textwrap
 import io
 
 # ==========================================
-# 1. CONFIGURACIÓN VISUAL Y UX (App-First)
+# 1. CONFIGURACIÓN VISUAL Y UX
 # ==========================================
 st.set_page_config(page_title="Turnos Servicios Puerto", layout="centered", initial_sidebar_state="collapsed")
 
@@ -60,33 +60,34 @@ try:
     def guardar_plantilla(df):
         DOC_PLANTILLA.set({'efectivos': df.to_dict('records')})
 
+    # PLANTILLA OFICIAL REQUERIDA
+    plantilla_oficial = pd.DataFrame([
+        {"TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
+        {"TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
+        {"TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
+        {"TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
+        {"TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
+        {"TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
+        {"TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
+        {"TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
+        {"TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 9},
+        {"TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 10},
+        {"TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 11},
+        {"TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 12},
+        {"TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 13},
+        {"TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 14},
+        {"TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 15},
+        {"TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 16},
+        {"TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 17}
+    ])
+
     if 'efectivos' not in st.session_state:
         plantilla_nube = cargar_plantilla()
         if plantilla_nube is not None and not plantilla_nube.empty:
             st.session_state.efectivos = plantilla_nube
         else:
-            # NUEVA PLANTILLA BASE ORDENADA
-            datos_base = pd.DataFrame([
-                {"TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
-                {"TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
-                {"TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
-                {"TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
-                {"TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
-                {"TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
-                {"TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
-                {"TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
-                {"TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 9},
-                {"TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 10},
-                {"TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 11},
-                {"TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 12},
-                {"TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 13},
-                {"TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 14},
-                {"TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 15},
-                {"TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 16},
-                {"TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 17}
-            ])
-            guardar_plantilla(datos_base)
-            st.session_state.efectivos = datos_base
+            guardar_plantilla(plantilla_oficial)
+            st.session_state.efectivos = plantilla_oficial
             
     if 'historial' not in st.session_state:
         memoria_guardada = cargar_memoria()
@@ -95,7 +96,6 @@ try:
             guardar_memoria(memoria_guardada)
         st.session_state.historial = memoria_guardada
         
-    # Inicializar variables de estado para mantener resultados en pantalla
     if 'cuadrante_generado' not in st.session_state:
         st.session_state.cuadrante_generado = False
         st.session_state.img_buffer = None
@@ -115,11 +115,21 @@ tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plant
 # PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA (Móvil)
 # ------------------------------------------
 with tab_plantilla:
-    st.info("💡 Edita los datos de los compañeros o añade nuevos. Los cambios se sincronizarán para todos.")
+    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial.")
+    
+    # Botón para forzar la carga de los mandos en la nube
+    if st.button("🔄 Restaurar Plantilla Oficial (Sobrescribir)"):
+        guardar_plantilla(plantilla_oficial)
+        st.session_state.efectivos = plantilla_oficial
+        for _, row in plantilla_oficial.iterrows():
+            if row["Nombre"] not in st.session_state.historial:
+                st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
+        guardar_memoria(st.session_state.historial)
+        st.success("✅ Plantilla oficial restaurada con éxito.")
+        st.rerun()
     
     df_plantilla = st.session_state.efectivos.copy()
     
-    # 1. Añadir Nuevo Componente
     with st.expander("➕ AÑADIR NUEVO COMPONENTE", expanded=False):
         col_n1, col_n2 = st.columns(2)
         nuevo_nombre = col_n1.text_input("Nombre Completo (Nuevo)")
@@ -137,7 +147,6 @@ with tab_plantilla:
     st.write("---")
     st.write("### 👥 Plantilla Actual")
     
-    # 2. Edición táctil mediante tarjetas en lugar de tabla
     df_plantilla = df_plantilla.sort_values("Orden").reset_index(drop=True)
     editados = []
     
@@ -148,7 +157,8 @@ with tab_plantilla:
             e_nombre = c2.text_input("Nombre", value=row['Nombre'], key=f"nom_{i}")
             e_tip = c3.text_input("TIP", value=row['TIP'], key=f"tip_{i}")
             
-            eliminar = st.checkbox("Eliminar compañero", key=f"del_{i}")
+            # Texto corregido según petición
+            eliminar = st.checkbox("Eliminar componente", key=f"del_{i}")
             if not eliminar:
                 editados.append({"TIP": e_tip.upper(), "Nombre": e_nombre.upper(), "Orden": int(e_orden)})
 
@@ -179,14 +189,13 @@ with tab_diario:
     efectivos_ordenados = st.session_state.efectivos.sort_values("Orden")
     nombres_lista = efectivos_ordenados["Nombre"].tolist()
     
-    # Desplegables múltiples para Mandos
-    jefes_seleccionados = st.multiselect("⭐ Jefes de Turno (Desplegable)", options=nombres_lista)
+    # Desplegables separados para Mandos/Confronta
+    jefes_seleccionados = st.multiselect("⭐ Jefes de Turno", options=nombres_lista)
     
     opciones_confronta = [n for n in nombres_lista if n not in jefes_seleccionados]
-    confrontas_seleccionados = st.multiselect("📝 Confronta (Desplegable)", options=opciones_confronta)
+    confrontas_seleccionados = st.multiselect("📝 Confronta", options=opciones_confronta)
     
-    # Interruptores para Operativos (excluyendo a los mandos ya elegidos)
-    st.write("🛡️ **Operativos** (Activa los que trabajan)")
+    st.write("🛡️ **Fuerza Operativa** (Activa los que entran en rotación)")
     ops_seleccionados = []
     
     for i, row in efectivos_ordenados.iterrows():
@@ -200,11 +209,10 @@ with tab_diario:
                     if st.toggle("Sí", key=f"tog_{i}", label_visibility="collapsed"):
                         ops_seleccionados.append(row)
 
-    # Lógica Inteligente de Rotación
     num_ops = len(ops_seleccionados)
     num_jefes = len(jefes_seleccionados)
     
-    # Por defecto 3 horas (índice 1), pero si hay 3 ops y >=1 jefe, 2 horas (índice 0)
+    # Automatización inteligente de 2 o 3 horas
     indice_defecto = 1 
     if num_ops == 3 and num_jefes >= 1:
         indice_defecto = 0
@@ -223,7 +231,7 @@ with tab_diario:
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
 
     # ==========================================
-    # 5. MOTOR MATEMÁTICO Y GENERADOR
+    # 5. MOTOR MATEMÁTICO Y GENERADOR PRO
     # ==========================================
     def calcular_franjas(turno, intervalo):
         start = 7 if turno == "Mañana" else 19
@@ -240,9 +248,10 @@ with tab_diario:
     def crear_imagen_tabla(df, titulo):
         df_img = df.copy()
         if 'Nombre' in df_img.columns:
-            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=22)))
+            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=20)))
 
-        fig, ax = plt.subplots(figsize=(14, 1.1 * len(df) + 2.5))
+        # Ajuste drástico de anchos para quitar el espacio en blanco de la columna Nombre
+        fig, ax = plt.subplots(figsize=(12.5, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
         
@@ -250,14 +259,15 @@ with tab_diario:
         table.auto_set_font_size(False)
         table.set_fontsize(9.5)
         
-        col_widths = [0.06, 0.13, 0.38, 0.13] + [0.10] * (len(df.columns) - 4)
+        # Columna Nombre (índice 2) más estrecha, Columna Rol (índice 3) más ancha
+        col_widths = [0.06, 0.14, 0.32, 0.18] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
                 table.get_celld()[(0, col_idx)].set_width(width)
                 for r in range(1, len(df) + 1):
                     table.get_celld()[(r, col_idx)].set_width(width)
                     
-        table.scale(1, 3.2)
+        table.scale(1, 3.0)
         
         for (row, col), cell in table.get_celld().items():
             cell.set_edgecolor('#B0C4DE') 
@@ -267,12 +277,16 @@ with tab_diario:
             else:
                 if df.iloc[row-1]['Nº'] == '-':
                     cell.set_facecolor('#E6F0EC') 
-                    cell.set_text_props(weight='bold', size=9.5)
+                    cell.set_text_props(size=9.5)
                 else:
                     cell.set_facecolor('#FFFFFF' if row % 2 == 0 else '#F4F6F5')
                     cell.set_text_props(size=9.5)
+                
+                # Forzar NEGRITA MAYÚSCULA en la columna de Roles (columna 3)
+                if df.columns[col] == 'Rol':
+                    cell.set_text_props(weight='bold')
         
-        plt.title(titulo, fontweight="bold", fontsize=14, color="#006B4C", pad=20)
+        plt.title(titulo, fontweight="bold", fontsize=15, color="#006B4C", pad=20)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
@@ -283,15 +297,15 @@ with tab_diario:
     if num_ops > 0 or num_jefes > 0 or len(confrontas_seleccionados) > 0:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            st.caption("Asignación justa automática (El más antiguo que lleve más tiempo sin el número alto).")
+            st.caption("Asignación matemática: El más antiguo (menor Nº de Orden) que lleve más tiempo sin el número alto.")
             
             df_ops = pd.DataFrame(ops_seleccionados)
             df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
             
-            # Orden estricto: Primero por fecha más antigua, en caso de empate por Orden más bajo (más antiguo)
+            # Orden estricto: Fecha más antigua, y si hay empate, el de mayor antigüedad real (Orden más bajo)
             df_ops = df_ops.sort_values(by=["Ultimo_Maximo", "Orden"], ascending=[True, True])
             
-            # Asignación segura del 1 al Num_ops
+            # Reparto correlativo del número más alto al más bajo
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
             asignaciones_usuario = []
@@ -304,11 +318,15 @@ with tab_diario:
                         st.markdown(f"**{row['Nombre']}**")
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
+                        
+                        # Clave dinámica para evitar el bug de solapamiento de memoria de Streamlit
+                        clave_unica = f"num_op_{row['TIP']}_sug_{row['Sugerido']}_tot_{num_ops}"
+                        
                         n_asignado = st.selectbox(
                             "Nº Asignado",
                             options=numeros_disponibles,
                             index=default_idx,
-                            key=f"num_op_{row['TIP']}"
+                            key=clave_unica
                         )
                     asignaciones_usuario.append({
                         "Nombre": row["Nombre"],
@@ -320,7 +338,7 @@ with tab_diario:
             asignados_list = numeros_editados["Nº Asignado"].tolist()
             
             if len(set(asignados_list)) != num_ops:
-                st.error("⚠️ ¡Atención! No puedes repetir el mismo número asignado entre distintos operativos.")
+                st.error("⚠️ ¡Atención! No puedes repetir el mismo número asignado entre distintos componentes.")
                 boton_generar = False
             else:
                 boton_generar = st.button("🚀 Confirmar Rotación y Generar", type="primary")
@@ -334,37 +352,33 @@ with tab_diario:
                 franjas_img, franjas_texto = calcular_franjas(tipo_turno, intervalo_horas)
                 titulo_cuadrante = f"CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}"
                 
-                # Generación de Texto Plano (Sin asteriscos)
                 texto = f"{titulo_cuadrante}\n\n"
                 
                 cuadrante_final = []
                 
-                # Procesar Jefes
                 for nombre_jefe in jefes_seleccionados:
                     tip_jefe = efectivos_ordenados[efectivos_ordenados["Nombre"] == nombre_jefe].iloc[0]["TIP"]
                     texto += f"JEFE DE TURNO: {nombre_jefe} ({tip_jefe})\n"
-                    fila_fija = {"Nº": "-", "TIP": tip_jefe, "Nombre": nombre_jefe, "Rol": "Jefe de Turno"}
+                    fila_fija = {"Nº": "-", "TIP": tip_jefe, "Nombre": nombre_jefe, "Rol": "JEFE DE TURNO"}
                     for h in franjas_img: fila_fija[h] = "-"
                     cuadrante_final.append(fila_fija)
                     
-                # Procesar Confrontas
                 for nombre_conf in confrontas_seleccionados:
                     tip_conf = efectivos_ordenados[efectivos_ordenados["Nombre"] == nombre_conf].iloc[0]["TIP"]
                     texto += f"CONFRONTA: {nombre_conf} ({tip_conf})\n"
-                    fila_fija = {"Nº": "-", "TIP": tip_conf, "Nombre": nombre_conf, "Rol": "Confronta"}
+                    fila_fija = {"Nº": "-", "TIP": tip_conf, "Nombre": nombre_conf, "Rol": "CONFRONTA"}
                     for h in franjas_img: fila_fija[h] = "-"
                     cuadrante_final.append(fila_fija)
                 
                 if jefes_seleccionados or confrontas_seleccionados:
                     texto += "\n"
                 
-                # Procesar Operativos
                 for _, row in numeros_editados.sort_values("Nº Asignado").iterrows():
                     tip_op = row["TIP"]
                     n_asignado = row['Nº Asignado']
                     
                     texto += f"{row['Nombre']} ({tip_op})\n"
-                    fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "OPERATIVO"}
+                    fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
                     
                     for idx, (h_img, h_txt) in enumerate(zip(franjas_img, franjas_texto)):
                         puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
@@ -377,7 +391,6 @@ with tab_diario:
                 df_final = pd.DataFrame(cuadrante_final)
                 img_buffer = crear_imagen_tabla(df_final, titulo_cuadrante)
                 
-                # Guardar en memoria para que no se borre
                 st.session_state.cuadrante_generado = True
                 st.session_state.img_buffer = img_buffer
                 st.session_state.texto_novedades = texto
@@ -402,4 +415,4 @@ with tab_diario:
             st.text_area("Copia el texto plano (sin símbolos):", value=st.session_state.texto_novedades, height=250)
             
     else:
-        st.info("Selecciona compañeros arriba para generar el cuadrante.")
+        st.info("Selecciona componentes arriba para generar el cuadrante.")
