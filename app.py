@@ -65,15 +65,15 @@ try:
 
     # PLANTILLA OFICIAL SEPARADA POR CATEGORÍAS
     plantilla_oficial = pd.DataFrame([
-        # MANDOS
-        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
-        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
-        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
-        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
-        {"Categoria": "MANDO", "TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
-        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
-        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
-        {"Categoria": "MANDO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
+        # JEFES DE TURNO
+        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
+        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
+        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
+        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
+        {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
+        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
+        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
+        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
         # OPERATIVOS
         {"Categoria": "OPERATIVO", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
         {"Categoria": "OPERATIVO", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
@@ -136,7 +136,7 @@ with tab_plantilla:
     
     with st.expander("➕ AÑADIR NUEVO COMPONENTE", expanded=False):
         col_c, col_o = st.columns(2)
-        nueva_cat = col_c.radio("Categoría", ["MANDO", "OPERATIVO"])
+        nueva_cat = col_c.radio("Categoría", ["JEFE DE TURNO", "OPERATIVO"])
         
         max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max()
         siguiente_orden = int(max_orden_actual + 1) if pd.notna(max_orden_actual) else 1
@@ -179,7 +179,7 @@ with tab_plantilla:
                         "Orden": int(e_orden)
                     })
 
-    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'MANDO'], "⭐ Mandos")
+    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno")
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'OPERATIVO'], "🛡️ Turno Fijo Guardia (Operativos)")
 
     if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
@@ -195,6 +195,15 @@ with tab_plantilla:
             st.success("✅ Plantilla sincronizada correctamente.")
             st.rerun()
 
+    st.write("---")
+    st.write("### 🛠️ Opciones Avanzadas")
+    if st.button("🗑️ Resetear historial de rotaciones (Empezar de cero)"):
+        nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
+        guardar_memoria(nuevo_historial)
+        st.session_state.historial = nuevo_historial
+        st.success("✅ Historial de rotaciones borrado. Ahora la antigüedad pura mandará al 100%.")
+        st.rerun()
+
 # ------------------------------------------
 # PESTAÑA 1: USO DIARIO
 # ------------------------------------------
@@ -206,7 +215,7 @@ with tab_diario:
     st.write("### 👥 Asignación de Roles")
     
     efectivos_global = st.session_state.efectivos.copy()
-    efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({'MANDO': 1, 'OPERATIVO': 2})
+    efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({'JEFE DE TURNO': 1, 'OPERATIVO': 2})
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
@@ -317,28 +326,21 @@ with tab_diario:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
             
-            # NUEVO TEXTO EXPLICATIVO
-            st.caption("Regla de Antigüedad: El más antiguo tiene el número más alto, salvo si lo tuvo la última vez que trabajó (pasa al 1).")
+            st.caption("Regla de Antigüedad: El más antiguo (Nº de Orden más bajo) tiene el número más alto, salvo si lo tuvo la última vez que trabajó.")
             
             df_ops = pd.DataFrame(ops_seleccionados)
             df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
             
-            # NUEVA LÓGICA DE ANTIGÜEDAD PURA
             max_fecha = df_ops["Ultimo_Maximo"].max()
             df_ops["Orden_Calculo"] = df_ops["Orden"]
             
-            # Si alguien tiene un historial real, buscamos quién fue el último en tener el max
             if max_fecha > date(2000, 1, 1):
                 penalizados = df_ops[df_ops["Ultimo_Maximo"] == max_fecha]
                 if not penalizados.empty:
-                    # El que lo tuvo la última vez es penalizado mandándolo al fondo (Orden altísimo)
                     idx_penalizado = penalizados.index[0]
                     df_ops.loc[idx_penalizado, "Orden_Calculo"] = 999999
             
-            # Ordenamos por antigüedad, dejando al penalizado el último
             df_ops = df_ops.sort_values(by="Orden_Calculo", ascending=True)
-            
-            # Reparto correlativo del número más alto al más bajo
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
             asignaciones_usuario = []
@@ -349,9 +351,16 @@ with tab_diario:
                     col_n1, col_n2 = st.columns([0.6, 0.4])
                     with col_n1:
                         st.markdown(f"**{row['Nombre']}**")
+                        
+                        # MEMORIA VISUAL: Mostramos la fecha del último número alto o si ha sido penalizado
+                        fecha_str = "Sin registro" if row["Ultimo_Maximo"] == date(2000, 1, 1) else row["Ultimo_Maximo"].strftime('%d/%m/%Y')
+                        st.caption(f"Nº Antigüedad: {row['Orden']} | Último Nº Alto: {fecha_str}")
+                        
+                        if row["Orden_Calculo"] == 999999:
+                            st.markdown("⚠️ <span style='color:#D32F2F; font-size:0.9em;'>Pasa al Nº 1 (Tuvo el último alto)</span>", unsafe_allow_html=True)
+
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
-                        
                         clave_unica = f"num_{row['TIP']}_tot_{num_ops}_sug_{row['Sugerido']}_{datetime.now().strftime('%M%S')}"
                         
                         n_asignado = st.selectbox(
