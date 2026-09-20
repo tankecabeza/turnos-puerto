@@ -261,7 +261,7 @@ with tab_diario:
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
 
     # ==========================================
-    # 5. MOTOR MATEMÁTICO Y GENERADOR
+    # 5. MOTOR MATEMÁTICO Y GENERADOR COMPACTO
     # ==========================================
     def calcular_franjas(turno, intervalo):
         start = 7 if turno == "Mañana" else 19
@@ -278,9 +278,11 @@ with tab_diario:
     def crear_imagen_tabla(df, titulo):
         df_img = df.copy()
         if 'Nombre' in df_img.columns:
-            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=18)))
+            # Envolvemos el texto a 16 caracteres para que quede mucho más apretado y elimine el espacio blanco
+            df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=16)))
 
-        fig, ax = plt.subplots(figsize=(11.0, 1.1 * len(df) + 2.5))
+        # Lienzo más compacto (ancho 10.0 en lugar de 12.5) para agrupar todas las columnas
+        fig, ax = plt.subplots(figsize=(10.0, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
         
@@ -288,14 +290,15 @@ with tab_diario:
         table.auto_set_font_size(False)
         table.set_fontsize(9.5)
         
-        col_widths = [0.05, 0.13, 0.24, 0.18] + [0.10] * (len(df.columns) - 4)
+        # Columna Nombre (índice 2) ajustada al 20% del ancho, igual que el Rol
+        col_widths = [0.06, 0.14, 0.20, 0.20] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
                 table.get_celld()[(0, col_idx)].set_width(width)
                 for r in range(1, len(df) + 1):
                     table.get_celld()[(r, col_idx)].set_width(width)
                     
-        table.scale(1, 3.0)
+        table.scale(1, 3.2)
         
         for (row, col), cell in table.get_celld().items():
             cell.set_edgecolor('#B0C4DE') 
@@ -338,6 +341,7 @@ with tab_diario:
                     idx_penalizado = penalizados.index[0]
                     df_ops.loc[idx_penalizado, "Orden_Calculo"] = 999999
             
+            # Ordenamos estrictamente por antigüedad matemática para hacer el reparto
             df_ops = df_ops.sort_values(by="Orden_Calculo", ascending=True)
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
@@ -359,7 +363,8 @@ with tab_diario:
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
                         
-                        clave_unica = f"asig_{row['TIP']}_{fecha_servicio}"
+                        # CLAVE ÚNICA LIMPIA: Evita que Streamlit memorice los 1s de errores pasados y fuerza el cálculo real, pero te deja cambiarlo
+                        clave_unica = f"turno_limpio_{row['TIP']}_{num_ops}_{fecha_servicio}"
                         
                         n_asignado = st.selectbox(
                             "Nº Asignado",
