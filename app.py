@@ -10,38 +10,12 @@ import platform
 import json
 import os
 import base64
+import hashlib
 
 # ==========================================
-# 1. CONFIGURACIÓN VISUAL Y SEGURIDAD
+# 1. CONFIGURACIÓN VISUAL
 # ==========================================
 st.set_page_config(page_title="Turnos Servicios Puerto", layout="centered", initial_sidebar_state="collapsed")
-
-# 🔒 CLAVE MAESTRA DE ACCESO (Cámbiala por la que quieras)
-PASSWORD_ACCESO = "Puerto2026*"
-
-if "autenticado" not in st.session_state:
-    st.session_state.autenticado = False
-
-if not st.session_state.autenticado:
-    st.markdown("""
-        <div style="text-align: center; margin-top: 50px;">
-            <h2>🛡️ ACCESO RESTRINGIDO</h2>
-            <p style="color: gray;">Sistema de Gestión de Servicios</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # SOLUCIÓN AL NAVEGADOR INTRUSIVO: autocomplete="current-password"
-    pwd = st.text_input("Introduzca la clave de seguridad corporativa:", type="password", autocomplete="current-password")
-    
-    if st.button("Desbloquear Sistema", type="primary"):
-        if pwd == PASSWORD_ACCESO:
-            st.session_state.autenticado = True
-            st.rerun()
-        else:
-            st.error("❌ Clave incorrecta o acceso denegado.")
-    
-    # Detiene la ejecución aquí. No carga NADA de la app si no hay clave.
-    st.stop()
 
 st.markdown("""
     <style>
@@ -54,17 +28,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ Turnos Servicios Puerto")
-
 # ==========================================
 # 2. SISTEMA HÍBRIDO (NUBE / PENDRIVE LOCAL)
 # ==========================================
 MODO_OFFLINE = platform.system() == "Windows"
 
 if MODO_OFFLINE:
-    st.caption("🟢 **MODO PENDRIVE ACTIVADO** (Datos ofuscados localmente)")
     MEMORIA_FILE = "memoria_local.bin"
     PLANTILLA_FILE = "plantilla_local.bin"
+    CRED_FILE = "credenciales_local.bin"
 
     def codificar_datos(data):
         json_str = json.dumps(data, ensure_ascii=False)
@@ -99,9 +71,20 @@ if MODO_OFFLINE:
     def guardar_plantilla(df):
         with open(PLANTILLA_FILE, "w", encoding="utf-8") as f:
             f.write(codificar_datos(df.to_dict('records')))
+            
+    def cargar_credenciales():
+        if os.path.exists(CRED_FILE):
+            try:
+                with open(CRED_FILE, "r", encoding="utf-8") as f:
+                    return decodificar_datos(f.read())
+            except: return {}
+        return {}
+
+    def guardar_credenciales(data):
+        with open(CRED_FILE, "w", encoding="utf-8") as f:
+            f.write(codificar_datos(data))
 
 else:
-    st.caption("☁️ **MODO NUBE ACTIVADO** (Conexión cifrada a Firebase)")
     @st.cache_resource
     def init_firebase():
         if not firebase_admin._apps:
@@ -115,6 +98,7 @@ else:
         db = init_firebase()
         DOC_MEMORIA = db.collection('gestion_turnos').document('memoria_rotacion')
         DOC_PLANTILLA = db.collection('gestion_turnos').document('plantilla_efectivos')
+        DOC_CREDENCIALES = db.collection('gestion_turnos').document('credenciales_usuarios')
         
         def cargar_memoria():
             doc = DOC_MEMORIA.get()
@@ -136,12 +120,20 @@ else:
 
         def guardar_plantilla(df):
             DOC_PLANTILLA.set({'efectivos': df.to_dict('records')})
+            
+        def cargar_credenciales():
+            doc = DOC_CREDENCIALES.get()
+            return doc.to_dict() if doc.exists else {}
+
+        def guardar_credenciales(data):
+            DOC_CREDENCIALES.set(data)
+            
     except Exception as e:
         st.error(f"❌ Error de conexión a la nube: {e}")
         st.stop()
 
 # ==========================================
-# CARGA INICIAL DE DATOS
+# 3. CARGA INICIAL DE DATOS
 # ==========================================
 plantilla_oficial = pd.DataFrame([
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
@@ -152,6 +144,8 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
+    
+    # RESGUARDO FISCAL (PLANTILLA COMPLETA INCLUYENDO EVENTUALES)
     {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
@@ -178,14 +172,111 @@ if 'historial' not in st.session_state:
         guardar_memoria(memoria_guardada)
     st.session_state.historial = memoria_guardada
     
+if 'credenciales' not in st.session_state:
+    st.session_state.credenciales = cargar_credenciales()
+
 if 'cuadrante_generado' not in st.session_state:
     st.session_state.cuadrante_generado = False
     st.session_state.img_buffer = None
     st.session_state.texto_novedades = ""
     st.session_state.fecha_generada = None
 
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+    st.session_state.usuario_actual = ""
+
 # ==========================================
-# 3. INTERFAZ TIPO APP (Pestañas)
+# 4. PANTALLA DE LOGIN RESTRINGIDO
+# ==========================================
+if not st.session_state.autenticado:
+    st.markdown("""
+        <div style="text-align: center; margin-top: 50px;">
+            <h2>🛡️ ACCESO RESTRINGIDO</h2>
+            <p style="color: gray;">Sistema de Gestión de Servicios</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    if MODO_OFFLINE:
+        st.caption("🟢 **MODO PENDRIVE ACTIVADO** (Cifrado Local)")
+    else:
+        st.caption("☁️ **MODO NUBE ACTIVADO** (Conexión Firebase)")
+    
+    with st.form("login_form"):
+        usuario_input = st.text_input("👤 Usuario (Tu número de TIP):", placeholder="Ej: F10173Y").upper().strip()
+        pwd_input = st.text_input("🔑 Contraseña:", type="password", autocomplete="current-password")
+        submit_btn = st.form_submit_button("Desbloquear Sistema", type="primary")
+        
+        if submit_btn:
+            # Extraemos todos los TIPs de la base de datos, PERO bloqueamos "XX" y "XXXXXXXX"
+            tips_validos = [tip.upper() for tip in st.session_state.efectivos['TIP'].tolist() if tip.upper() not in ["XX", "", "XXXXXXXX"]]
+            
+            # Puerta trasera de emergencia para administradores
+            if usuario_input == "ADMIN" and pwd_input == "Puerto2026*":
+                st.session_state.autenticado = True
+                st.session_state.usuario_actual = "ADMIN"
+                st.rerun()
+                
+            elif usuario_input in tips_validos:
+                pwd_hash = hashlib.sha256(pwd_input.encode()).hexdigest()
+                creds = st.session_state.credenciales
+                
+                # Comprobar si el usuario tiene contraseña personalizada
+                if usuario_input in creds:
+                    if pwd_hash == creds[usuario_input]:
+                        st.session_state.autenticado = True
+                        st.session_state.usuario_actual = usuario_input
+                        st.rerun()
+                    else:
+                        st.error("❌ Contraseña incorrecta.")
+                else:
+                    # Primer acceso: exige la contraseña maestra por defecto
+                    hash_por_defecto = hashlib.sha256("Puerto2026*".encode()).hexdigest()
+                    if pwd_hash == hash_por_defecto:
+                        st.session_state.autenticado = True
+                        st.session_state.usuario_actual = usuario_input
+                        st.rerun()
+                    else:
+                        st.error("❌ Primer acceso: Utiliza la contraseña inicial por defecto (Puerto2026*).")
+            else:
+                st.error("❌ El TIP introducido no consta en la base de datos o no tiene permisos de acceso.")
+    
+    st.stop()
+
+
+# ==========================================
+# 5. ÁREA PERSONAL Y BARRA LATERAL
+# ==========================================
+with st.sidebar:
+    st.markdown(f"### 👤 {st.session_state.usuario_actual}")
+    st.caption("Área Personal Guardia Civil")
+    
+    with st.expander("🔑 Cambiar mi contraseña"):
+        with st.form("form_pass"):
+            new_pass = st.text_input("Nueva contraseña:", type="password")
+            new_pass2 = st.text_input("Repetir contraseña:", type="password")
+            btn_cambiar = st.form_submit_button("Actualizar")
+            
+            if btn_cambiar:
+                if len(new_pass) < 6:
+                    st.error("Debe tener al menos 6 caracteres.")
+                elif new_pass != new_pass2:
+                    st.error("Las contraseñas no coinciden.")
+                else:
+                    new_hash = hashlib.sha256(new_pass.encode()).hexdigest()
+                    st.session_state.credenciales[st.session_state.usuario_actual] = new_hash
+                    guardar_credenciales(st.session_state.credenciales)
+                    st.success("✅ Contraseña actualizada.")
+    
+    st.write("---")
+    if st.button("🚪 Cerrar Sesión"):
+        st.session_state.autenticado = False
+        st.session_state.usuario_actual = ""
+        st.rerun()
+
+st.title("🛡️ Turnos Servicios Puerto")
+
+# ==========================================
+# 6. INTERFAZ TIPO APP (Pestañas)
 # ==========================================
 tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plantilla"])
 
@@ -534,14 +625,3 @@ with tab_diario:
             
     else:
         st.info("Selecciona componentes arriba para generar el cuadrante.")
-    
-    st.write("---")
-    st.write("### 🛠️ Opciones Avanzadas de Reseteo")
-    with st.expander("⚠️ Zona de Peligro (Cuidado)"):
-        st.warning("Estos botones borrarán tus configuraciones actuales.")
-        if st.button("🗑️ Resetear historial de rotaciones", key="reset_diario"):
-            nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
-            guardar_memoria(nuevo_historial)
-            st.session_state.historial = nuevo_historial
-            st.success("✅ Historial de rotaciones borrado. Antigüedad pura al 100%.")
-            st.rerun()
