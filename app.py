@@ -133,19 +133,19 @@ else:
         st.stop()
 
 # ==========================================
-# 3. CARGA INICIAL DE DATOS
+# 3. CARGA INICIAL DE DATOS EXACTOS
 # ==========================================
 plantilla_oficial = pd.DataFrame([
-    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
-    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
-    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
-    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
-    {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
-    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
-    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
-    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
+    {"Categoria": "JEFE DE TURNO", "TIP": "Q21989J", "Nombre": "JUAN CARLOS GÁLVEZ ÁLVAREZ", "Orden": 1},
+    {"Categoria": "JEFE DE TURNO", "TIP": "E57240M", "Nombre": "MARTIN RICO HUTCHISON", "Orden": 2},
+    {"Categoria": "JEFE DE TURNO", "TIP": "X49035H", "Nombre": "DAVID MOSTAZO GARCÍA", "Orden": 3},
+    {"Categoria": "JEFE DE TURNO", "TIP": "B36115Y", "Nombre": "SALVADOR MARTÍN BAENA", "Orden": 4},
+    {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "ANSELMO ROMERO MORENO", "Orden": 5},
+    {"Categoria": "JEFE DE TURNO", "TIP": "R37053N", "Nombre": "MIGUEL CARMONA FLORES", "Orden": 6},
+    {"Categoria": "JEFE DE TURNO", "TIP": "P44826Q", "Nombre": "MIGUEL ÁNGEL DUARTE SÁNCHEZ", "Orden": 7},
+    {"Categoria": "JEFE DE TURNO", "TIP": "P58735T", "Nombre": "MIGUEL MARTÍN DÍAZ", "Orden": 8},
     
-    # RESGUARDO FISCAL (PLANTILLA COMPLETA INCLUYENDO EVENTUALES)
+    # RESGUARDO FISCAL (PLANTILLA EXACTA Y ACTUALIZADA)
     {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
@@ -207,7 +207,7 @@ if not st.session_state.autenticado:
         submit_btn = st.form_submit_button("Desbloquear Sistema", type="primary")
         
         if submit_btn:
-            # Extraemos todos los TIPs de la base de datos, PERO bloqueamos "XX" y "XXXXXXXX"
+            # Extraemos todos los TIPs de la base de datos, PERO bloqueamos los TIPs de prueba, vacíos y "XXXXXXXX"
             tips_validos = [tip.upper() for tip in st.session_state.efectivos['TIP'].tolist() if tip.upper() not in ["XX", "", "XXXXXXXX"]]
             
             # Puerta trasera de emergencia para administradores
