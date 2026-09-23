@@ -257,10 +257,16 @@ with tab_diario:
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    jefes_seleccionados = st.multiselect("⭐ Jefes de Turno", options=nombres_lista_global)
+    # -------------------------------------------------------------
+    # NUEVOS DESPLEGABLES DE SELECCIÓN ÚNICA (Se cierran al elegir)
+    # -------------------------------------------------------------
+    opciones_jefe = ["(Ninguno)"] + nombres_lista_global
+    jefe_seleccionado = st.selectbox("⭐ Jefe de Turno", options=opciones_jefe)
+    jefes_seleccionados = [jefe_seleccionado] if jefe_seleccionado != "(Ninguno)" else []
     
-    opciones_confronta = [n for n in nombres_lista_global if n not in jefes_seleccionados]
-    confrontas_seleccionados = st.multiselect("📝 Confronta", options=opciones_confronta)
+    opciones_confronta = ["(Ninguno)"] + [n for n in nombres_lista_global if n not in jefes_seleccionados]
+    confronta_seleccionado = st.selectbox("📝 Confronta", options=opciones_confronta)
+    confrontas_seleccionados = [confronta_seleccionado] if confronta_seleccionado != "(Ninguno)" else []
     
     st.write("---")
     st.write("🛡️ **Resguardo Fiscal** (Activa los componentes en rotación)")
