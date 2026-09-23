@@ -9,11 +9,38 @@ import io
 import platform
 import json
 import os
+import base64
 
 # ==========================================
-# 1. CONFIGURACIÓN VISUAL Y UX
+# 1. CONFIGURACIÓN VISUAL Y SEGURIDAD
 # ==========================================
 st.set_page_config(page_title="Turnos Servicios Puerto", layout="centered", initial_sidebar_state="collapsed")
+
+# 🔒 CLAVE MAESTRA DE ACCESO (Cámbiala por la que quieras)
+PASSWORD_ACCESO = "Puerto2026*"
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    st.markdown("""
+        <div style="text-align: center; margin-top: 50px;">
+            <h2>🛡️ ACCESO RESTRINGIDO</h2>
+            <p style="color: gray;">Sistema de Gestión de Servicios</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    pwd = st.text_input("Introduzca la clave de seguridad corporativa:", type="password")
+    
+    if st.button("Desbloquear Sistema", type="primary"):
+        if pwd == PASSWORD_ACCESO:
+            st.session_state.autenticado = True
+            st.rerun()
+        else:
+            st.error("❌ Clave incorrecta o acceso denegado.")
+    
+    # Detiene la ejecución aquí. No carga NADA de la app si no hay clave.
+    st.stop()
 
 st.markdown("""
     <style>
@@ -34,37 +61,47 @@ st.title("🛡️ Turnos Servicios Puerto")
 MODO_OFFLINE = platform.system() == "Windows"
 
 if MODO_OFFLINE:
-    st.caption("🟢 **MODO PENDRIVE ACTIVADO** (Sin conexión a la nube para evitar el cortafuegos)")
-    MEMORIA_FILE = "memoria_local.json"
-    PLANTILLA_FILE = "plantilla_local.json"
+    st.caption("🟢 **MODO PENDRIVE ACTIVADO** (Datos ofuscados localmente)")
+    MEMORIA_FILE = "memoria_local.bin"
+    PLANTILLA_FILE = "plantilla_local.bin"
+
+    # Funciones de ofuscación para evitar que el JSON se lea en texto plano
+    def codificar_datos(data):
+        json_str = json.dumps(data, ensure_ascii=False)
+        return base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+
+    def decodificar_datos(b64_str):
+        json_str = base64.b64decode(b64_str).decode('utf-8')
+        return json.loads(json_str)
 
     def cargar_memoria():
         if os.path.exists(MEMORIA_FILE):
             try:
                 with open(MEMORIA_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    data = decodificar_datos(f.read())
                     return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in data.items()}
             except: return {}
         return {}
 
     def guardar_memoria(data):
         with open(MEMORIA_FILE, "w", encoding="utf-8") as f:
-            json.dump({k: v.strftime("%Y-%m-%d") for k, v in data.items()}, f, ensure_ascii=False, indent=4)
+            diccionario_fechas = {k: v.strftime("%Y-%m-%d") for k, v in data.items()}
+            f.write(codificar_datos(diccionario_fechas))
 
     def cargar_plantilla():
         if os.path.exists(PLANTILLA_FILE):
             try:
                 with open(PLANTILLA_FILE, "r", encoding="utf-8") as f:
-                    return pd.DataFrame(json.load(f))
+                    return pd.DataFrame(decodificar_datos(f.read()))
             except: return None
         return None
 
     def guardar_plantilla(df):
         with open(PLANTILLA_FILE, "w", encoding="utf-8") as f:
-            json.dump(df.to_dict('records'), f, ensure_ascii=False, indent=4)
+            f.write(codificar_datos(df.to_dict('records')))
 
 else:
-    st.caption("☁️ **MODO NUBE ACTIVADO** (Conectado a Firebase)")
+    st.caption("☁️ **MODO NUBE ACTIVADO** (Conexión cifrada a Firebase)")
     @st.cache_resource
     def init_firebase():
         if not firebase_admin._apps:
@@ -107,7 +144,6 @@ else:
 # CARGA INICIAL DE DATOS
 # ==========================================
 plantilla_oficial = pd.DataFrame([
-    # JEFES DE TURNO
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
@@ -116,7 +152,6 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
     {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
-    # RESGUARDO FISCAL
     {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
@@ -210,7 +245,6 @@ with tab_plantilla:
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno")
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)")
 
-    # BOTÓN PRINCIPAL DE GUARDADO (ACTUALIZA LA BASE DE DATOS)
     if st.button("💾 GUARDAR CAMBIOS EN LA BASE DE DATOS", type="primary"):
         nueva_plantilla = pd.DataFrame(editados)
         if not nueva_plantilla.empty:
@@ -227,9 +261,8 @@ with tab_plantilla:
     st.write("---")
     st.write("### 🛠️ Opciones Avanzadas de Reseteo")
     with st.expander("⚠️ Zona de Peligro (Cuidado)"):
-        st.warning("Estos botones borrarán tus configuraciones actuales de la base de datos.")
+        st.warning("Estos botones borrarán tus configuraciones actuales.")
         
-        # EL ANTIGUO BOTÓN DE RESTAURAR AHORA ESTÁ ESCONDIDO AQUÍ
         if st.button("🔄 Volver a la plantilla original de fábrica (Borrará tus modificaciones)"):
             guardar_plantilla(plantilla_oficial)
             st.session_state.efectivos = plantilla_oficial
@@ -262,9 +295,6 @@ with tab_diario:
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    # -------------------------------------------------------------
-    # DESPLEGABLES DE SELECCIÓN ÚNICA
-    # -------------------------------------------------------------
     opciones_jefe = ["(Ninguno)"] + nombres_lista_global
     jefe_seleccionado = st.selectbox("⭐ Jefe de Turno", options=opciones_jefe)
     jefes_seleccionados = [jefe_seleccionado] if jefe_seleccionado != "(Ninguno)" else []
