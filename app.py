@@ -158,17 +158,7 @@ tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plant
 # PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA
 # ------------------------------------------
 with tab_plantilla:
-    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial.")
-    
-    if st.button("🔄 Restaurar Plantilla Oficial (Sobrescribir)"):
-        guardar_plantilla(plantilla_oficial)
-        st.session_state.efectivos = plantilla_oficial
-        for _, row in plantilla_oficial.iterrows():
-            if row["Nombre"] not in st.session_state.historial:
-                st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
-        guardar_memoria(st.session_state.historial)
-        st.success("✅ Plantilla oficial restaurada con éxito.")
-        st.rerun()
+    st.info("💡 Edita los datos, añade componentes y pulsa 'Guardar Cambios' al final de la página para actualizar la Base de Datos.")
     
     df_plantilla = st.session_state.efectivos.copy()
     
@@ -220,7 +210,8 @@ with tab_plantilla:
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno")
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)")
 
-    if st.button("💾 GUARDAR CAMBIOS", type="primary"):
+    # BOTÓN PRINCIPAL DE GUARDADO (ACTUALIZA LA BASE DE DATOS)
+    if st.button("💾 GUARDAR CAMBIOS EN LA BASE DE DATOS", type="primary"):
         nueva_plantilla = pd.DataFrame(editados)
         if not nueva_plantilla.empty:
             guardar_plantilla(nueva_plantilla)
@@ -230,17 +221,31 @@ with tab_plantilla:
                 if row["Nombre"] not in st.session_state.historial:
                     st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
             guardar_memoria(st.session_state.historial)
-            st.success("✅ Plantilla guardada correctamente.")
+            st.success("✅ Plantilla actualizada permanentemente en la Base de Datos.")
             st.rerun()
 
     st.write("---")
-    st.write("### 🛠️ Opciones Avanzadas")
-    if st.button("🗑️ Resetear historial de rotaciones", key="reset_plantilla"):
-        nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
-        guardar_memoria(nuevo_historial)
-        st.session_state.historial = nuevo_historial
-        st.success("✅ Historial de rotaciones borrado. Antigüedad pura al 100%.")
-        st.rerun()
+    st.write("### 🛠️ Opciones Avanzadas de Reseteo")
+    with st.expander("⚠️ Zona de Peligro (Cuidado)"):
+        st.warning("Estos botones borrarán tus configuraciones actuales de la base de datos.")
+        
+        # EL ANTIGUO BOTÓN DE RESTAURAR AHORA ESTÁ ESCONDIDO AQUÍ
+        if st.button("🔄 Volver a la plantilla original de fábrica (Borrará tus modificaciones)"):
+            guardar_plantilla(plantilla_oficial)
+            st.session_state.efectivos = plantilla_oficial
+            for _, row in plantilla_oficial.iterrows():
+                if row["Nombre"] not in st.session_state.historial:
+                    st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
+            guardar_memoria(st.session_state.historial)
+            st.success("✅ Plantilla reseteada a los valores de fábrica.")
+            st.rerun()
+            
+        if st.button("🗑️ Resetear historial de rotaciones (Antigüedad pura)", key="reset_plantilla"):
+            nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
+            guardar_memoria(nuevo_historial)
+            st.session_state.historial = nuevo_historial
+            st.success("✅ Historial de rotaciones borrado. Antigüedad pura al 100%.")
+            st.rerun()
 
 # ------------------------------------------
 # PESTAÑA 1: USO DIARIO
@@ -258,7 +263,7 @@ with tab_diario:
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
     # -------------------------------------------------------------
-    # NUEVOS DESPLEGABLES DE SELECCIÓN ÚNICA (Se cierran al elegir)
+    # DESPLEGABLES DE SELECCIÓN ÚNICA
     # -------------------------------------------------------------
     opciones_jefe = ["(Ninguno)"] + nombres_lista_global
     jefe_seleccionado = st.selectbox("⭐ Jefe de Turno", options=opciones_jefe)
@@ -501,10 +506,12 @@ with tab_diario:
         st.info("Selecciona componentes arriba para generar el cuadrante.")
     
     st.write("---")
-    st.write("### 🛠️ Opciones Avanzadas")
-    if st.button("🗑️ Resetear historial de rotaciones", key="reset_diario"):
-        nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
-        guardar_memoria(nuevo_historial)
-        st.session_state.historial = nuevo_historial
-        st.success("✅ Historial de rotaciones borrado. Antigüedad pura al 100%.")
-        st.rerun()
+    st.write("### 🛠️ Opciones Avanzadas de Reseteo")
+    with st.expander("⚠️ Zona de Peligro (Cuidado)"):
+        st.warning("Estos botones borrarán tus configuraciones actuales.")
+        if st.button("🗑️ Resetear historial de rotaciones", key="reset_diario"):
+            nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
+            guardar_memoria(nuevo_historial)
+            st.session_state.historial = nuevo_historial
+            st.success("✅ Historial de rotaciones borrado. Antigüedad pura al 100%.")
+            st.rerun()
