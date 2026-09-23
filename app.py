@@ -6,6 +6,9 @@ from firebase_admin import credentials, firestore
 import matplotlib.pyplot as plt
 import textwrap
 import io
+import platform
+import json
+import os
 
 # ==========================================
 # 1. CONFIGURACIÓN VISUAL Y UX
@@ -26,89 +29,125 @@ st.markdown("""
 st.title("🛡️ Turnos Servicios Puerto")
 
 # ==========================================
-# 2. CONEXIÓN A FIREBASE Y SINCRONIZACIÓN
+# 2. SISTEMA HÍBRIDO (NUBE / PENDRIVE LOCAL)
 # ==========================================
-@st.cache_resource
-def init_firebase():
-    if not firebase_admin._apps:
-        secrets_dict = dict(st.secrets["firebase"])
-        secrets_dict["private_key"] = secrets_dict["private_key"].replace('\\n', '\n')
-        cred = credentials.Certificate(secrets_dict)
-        firebase_admin.initialize_app(cred)
-    return firestore.client()
+MODO_OFFLINE = platform.system() == "Windows"
 
-try:
-    db = init_firebase()
-    DOC_MEMORIA = db.collection('gestion_turnos').document('memoria_rotacion')
-    DOC_PLANTILLA = db.collection('gestion_turnos').document('plantilla_efectivos')
-    
+if MODO_OFFLINE:
+    st.caption("🟢 **MODO PENDRIVE ACTIVADO** (Sin conexión a la nube para evitar el cortafuegos)")
+    MEMORIA_FILE = "memoria_local.json"
+    PLANTILLA_FILE = "plantilla_local.json"
+
     def cargar_memoria():
-        doc = DOC_MEMORIA.get()
-        if doc.exists:
-            return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in doc.to_dict().items()}
+        if os.path.exists(MEMORIA_FILE):
+            try:
+                with open(MEMORIA_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in data.items()}
+            except: return {}
         return {}
 
     def guardar_memoria(data):
-        DOC_MEMORIA.set({k: v.strftime("%Y-%m-%d") for k, v in data.items()})
+        with open(MEMORIA_FILE, "w", encoding="utf-8") as f:
+            json.dump({k: v.strftime("%Y-%m-%d") for k, v in data.items()}, f, ensure_ascii=False, indent=4)
 
     def cargar_plantilla():
-        doc = DOC_PLANTILLA.get()
-        if doc.exists:
-            df = pd.DataFrame(doc.to_dict()['efectivos'])
-            if 'Categoria' not in df.columns:
-                df['Categoria'] = 'RESGUARDO FISCAL'
-            return df
+        if os.path.exists(PLANTILLA_FILE):
+            try:
+                with open(PLANTILLA_FILE, "r", encoding="utf-8") as f:
+                    return pd.DataFrame(json.load(f))
+            except: return None
         return None
 
     def guardar_plantilla(df):
-        DOC_PLANTILLA.set({'efectivos': df.to_dict('records')})
+        with open(PLANTILLA_FILE, "w", encoding="utf-8") as f:
+            json.dump(df.to_dict('records'), f, ensure_ascii=False, indent=4)
 
-    plantilla_oficial = pd.DataFrame([
-        # JEFES DE TURNO
-        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
-        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
-        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
-        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
-        {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
-        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
-        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
-        {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
-        # RESGUARDO FISCAL
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 4},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 5},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 6},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 7},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
-        {"Categoria": "RESGUARDO FISCAL", "TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9}
-    ])
+else:
+    st.caption("☁️ **MODO NUBE ACTIVADO** (Conectado a Firebase)")
+    @st.cache_resource
+    def init_firebase():
+        if not firebase_admin._apps:
+            secrets_dict = dict(st.secrets["firebase"])
+            secrets_dict["private_key"] = secrets_dict["private_key"].replace('\\n', '\n')
+            cred = credentials.Certificate(secrets_dict)
+            firebase_admin.initialize_app(cred)
+        return firestore.client()
 
-    if 'efectivos' not in st.session_state:
-        plantilla_nube = cargar_plantilla()
-        if plantilla_nube is not None and not plantilla_nube.empty:
-            st.session_state.efectivos = plantilla_nube
-        else:
-            guardar_plantilla(plantilla_oficial)
-            st.session_state.efectivos = plantilla_oficial
-            
-    if 'historial' not in st.session_state:
-        memoria_guardada = cargar_memoria()
-        if not memoria_guardada:
-            memoria_guardada = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
-            guardar_memoria(memoria_guardada)
-        st.session_state.historial = memoria_guardada
+    try:
+        db = init_firebase()
+        DOC_MEMORIA = db.collection('gestion_turnos').document('memoria_rotacion')
+        DOC_PLANTILLA = db.collection('gestion_turnos').document('plantilla_efectivos')
         
-    if 'cuadrante_generado' not in st.session_state:
-        st.session_state.cuadrante_generado = False
-        st.session_state.img_buffer = None
-        st.session_state.texto_novedades = ""
-        st.session_state.fecha_generada = None
+        def cargar_memoria():
+            doc = DOC_MEMORIA.get()
+            if doc.exists:
+                return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in doc.to_dict().items()}
+            return {}
 
-except Exception as e:
-    st.error(f"❌ Error de conexión: {e}")
-    st.stop()
+        def guardar_memoria(data):
+            DOC_MEMORIA.set({k: v.strftime("%Y-%m-%d") for k, v in data.items()})
+
+        def cargar_plantilla():
+            doc = DOC_PLANTILLA.get()
+            if doc.exists:
+                df = pd.DataFrame(doc.to_dict()['efectivos'])
+                if 'Categoria' not in df.columns:
+                    df['Categoria'] = 'RESGUARDO FISCAL'
+                return df
+            return None
+
+        def guardar_plantilla(df):
+            DOC_PLANTILLA.set({'efectivos': df.to_dict('records')})
+    except Exception as e:
+        st.error(f"❌ Error de conexión a la nube: {e}")
+        st.stop()
+
+# ==========================================
+# CARGA INICIAL DE DATOS
+# ==========================================
+plantilla_oficial = pd.DataFrame([
+    # JEFES DE TURNO
+    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO 1º GÁLVEZ", "Orden": 1},
+    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "SARGENTO HUTCHINSON", "Orden": 2},
+    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO DAVID", "Orden": 3},
+    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO SALVADOR", "Orden": 4},
+    {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "CABO ANSELMO", "Orden": 5},
+    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "CABO MIGUEL", "Orden": 6},
+    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA 1º DUARTE", "Orden": 7},
+    {"Categoria": "JEFE DE TURNO", "TIP": "XX", "Nombre": "GUARDIA PEDRO", "Orden": 8},
+    # RESGUARDO FISCAL
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 4},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 5},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 6},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 7},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9}
+])
+
+if 'efectivos' not in st.session_state:
+    plantilla_nube = cargar_plantilla()
+    if plantilla_nube is not None and not plantilla_nube.empty:
+        st.session_state.efectivos = plantilla_nube
+    else:
+        guardar_plantilla(plantilla_oficial)
+        st.session_state.efectivos = plantilla_oficial
+        
+if 'historial' not in st.session_state:
+    memoria_guardada = cargar_memoria()
+    if not memoria_guardada:
+        memoria_guardada = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
+        guardar_memoria(memoria_guardada)
+    st.session_state.historial = memoria_guardada
+    
+if 'cuadrante_generado' not in st.session_state:
+    st.session_state.cuadrante_generado = False
+    st.session_state.img_buffer = None
+    st.session_state.texto_novedades = ""
+    st.session_state.fecha_generada = None
 
 # ==========================================
 # 3. INTERFAZ TIPO APP (Pestañas)
@@ -119,7 +158,7 @@ tab_diario, tab_plantilla = st.tabs(["📋 Cuadrante Diario", "👥 Editar Plant
 # PESTAÑA 2: CONFIGURACIÓN DE PLANTILLA
 # ------------------------------------------
 with tab_plantilla:
-    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial separada por categorías.")
+    st.info("💡 Edita los datos, añade nuevos componentes o restaura la lista oficial.")
     
     if st.button("🔄 Restaurar Plantilla Oficial (Sobrescribir)"):
         guardar_plantilla(plantilla_oficial)
@@ -181,7 +220,7 @@ with tab_plantilla:
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno")
     renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)")
 
-    if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
+    if st.button("💾 GUARDAR CAMBIOS", type="primary"):
         nueva_plantilla = pd.DataFrame(editados)
         if not nueva_plantilla.empty:
             guardar_plantilla(nueva_plantilla)
@@ -191,7 +230,7 @@ with tab_plantilla:
                 if row["Nombre"] not in st.session_state.historial:
                     st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
             guardar_memoria(st.session_state.historial)
-            st.success("✅ Plantilla sincronizada correctamente.")
+            st.success("✅ Plantilla guardada correctamente.")
             st.rerun()
 
     st.write("---")
@@ -224,7 +263,7 @@ with tab_diario:
     confrontas_seleccionados = st.multiselect("📝 Confronta", options=opciones_confronta)
     
     st.write("---")
-    st.write("🛡️ **Resguardo Fiscal** (Activa los componentes que entran en la rotación de puestos)")
+    st.write("🛡️ **Resguardo Fiscal** (Activa los componentes en rotación)")
     ops_seleccionados = []
     
     df_operativos_solo = efectivos_global[efectivos_global['Categoria'] == 'RESGUARDO FISCAL'].sort_values("Orden")
@@ -261,7 +300,7 @@ with tab_diario:
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
 
     # ==========================================
-    # 5. MOTOR MATEMÁTICO Y GENERADOR COMPACTO
+    # 5. MOTOR MATEMÁTICO Y GENERADOR
     # ==========================================
     def calcular_franjas(turno, intervalo):
         start = 7 if turno == "Mañana" else 19
@@ -278,10 +317,8 @@ with tab_diario:
     def crear_imagen_tabla(df, titulo):
         df_img = df.copy()
         if 'Nombre' in df_img.columns:
-            # Aumentado el ancho a 22 para que nombres largos queden bien divididos en 2 líneas
             df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=22)))
 
-        # Lienzo ampliado a 11.5 para dar espacio extra a las columnas de Nombre y Rol
         fig, ax = plt.subplots(figsize=(11.5, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
@@ -290,7 +327,6 @@ with tab_diario:
         table.auto_set_font_size(False)
         table.set_fontsize(9.5)
         
-        # Ampliados los porcentajes de Nombre (0.26) y Rol (0.21)
         col_widths = [0.05, 0.12, 0.26, 0.21] + [0.10] * (len(df.columns) - 4)
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
@@ -362,7 +398,7 @@ with tab_diario:
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
                         
-                        clave_unica = f"asig_{row['TIP']}_{fecha_servicio}"
+                        clave_unica = f"turno_limpio_{row['TIP']}_{num_ops}_{fecha_servicio}"
                         
                         n_asignado = st.selectbox(
                             "Nº Asignado",
@@ -437,7 +473,7 @@ with tab_diario:
                 st.session_state.texto_novedades = texto
                 st.session_state.fecha_generada = fecha_servicio.strftime('%d_%m_%Y')
                 
-                st.success(f"☁️ Guardado en Firebase. {nombre_max} pasa al final de la cola.")
+                st.success(f"☁️ Guardado con éxito. {nombre_max} pasa al final de la cola.")
 
         # ==========================================
         # 6. MOSTRAR RESULTADOS GUARDADOS EN MEMORIA
