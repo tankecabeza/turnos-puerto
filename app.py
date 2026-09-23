@@ -136,14 +136,14 @@ else:
 # 3. CARGA INICIAL DE DATOS EXACTOS
 # ==========================================
 plantilla_oficial = pd.DataFrame([
-    {"Categoria": "JEFE DE TURNO", "TIP": "Q21989J", "Nombre": "JUAN CARLOS GÁLVEZ ÁLVAREZ", "Orden": 1},
-    {"Categoria": "JEFE DE TURNO", "TIP": "E57240M", "Nombre": "MARTIN RICO HUTCHISON", "Orden": 2},
-    {"Categoria": "JEFE DE TURNO", "TIP": "X49035H", "Nombre": "DAVID MOSTAZO GARCÍA", "Orden": 3},
-    {"Categoria": "JEFE DE TURNO", "TIP": "B36115Y", "Nombre": "SALVADOR MARTÍN BAENA", "Orden": 4},
-    {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "ANSELMO ROMERO MORENO", "Orden": 5},
-    {"Categoria": "JEFE DE TURNO", "TIP": "R37053N", "Nombre": "MIGUEL CARMONA FLORES", "Orden": 6},
-    {"Categoria": "JEFE DE TURNO", "TIP": "P44826Q", "Nombre": "MIGUEL ÁNGEL DUARTE SÁNCHEZ", "Orden": 7},
-    {"Categoria": "JEFE DE TURNO", "TIP": "P58735T", "Nombre": "MIGUEL MARTÍN DÍAZ", "Orden": 8},
+    {"Categoria": "JEFE DE TURNO", "TIP": "Q21989J", "Nombre": "SARGENTO 1º JUAN CARLOS GÁLVEZ ÁLVAREZ", "Orden": 1},
+    {"Categoria": "JEFE DE TURNO", "TIP": "E57240M", "Nombre": "SARGENTO MARTIN RICO HUTCHISON", "Orden": 2},
+    {"Categoria": "JEFE DE TURNO", "TIP": "X49035H", "Nombre": "CABO 1º DAVID MOSTAZO GARCÍA", "Orden": 3},
+    {"Categoria": "JEFE DE TURNO", "TIP": "B36115Y", "Nombre": "CABO 1º SALVADOR MARTÍN BAENA", "Orden": 4},
+    {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "CABO 1º ANSELMO ROMERO MORENO", "Orden": 5},
+    {"Categoria": "JEFE DE TURNO", "TIP": "R37053N", "Nombre": "CABO 1º MIGUEL CARMONA FLORES", "Orden": 6},
+    {"Categoria": "JEFE DE TURNO", "TIP": "P44826Q", "Nombre": "GUARDIA CIVIL 1º MIGUEL ÁNGEL DUARTE SÁNCHEZ", "Orden": 7},
+    {"Categoria": "JEFE DE TURNO", "TIP": "P58735T", "Nombre": "GUARDIA CIVIL MIGUEL MARTÍN DÍAZ", "Orden": 8},
     
     # RESGUARDO FISCAL (PLANTILLA EXACTA Y ACTUALIZADA)
     {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
