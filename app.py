@@ -30,7 +30,8 @@ if not st.session_state.autenticado:
         </div>
     """, unsafe_allow_html=True)
     
-    pwd = st.text_input("Introduzca la clave de seguridad corporativa:", type="password")
+    # SOLUCIÓN AL NAVEGADOR INTRUSIVO: autocomplete="current-password"
+    pwd = st.text_input("Introduzca la clave de seguridad corporativa:", type="password", autocomplete="current-password")
     
     if st.button("Desbloquear Sistema", type="primary"):
         if pwd == PASSWORD_ACCESO:
@@ -65,7 +66,6 @@ if MODO_OFFLINE:
     MEMORIA_FILE = "memoria_local.bin"
     PLANTILLA_FILE = "plantilla_local.bin"
 
-    # Funciones de ofuscación para evitar que el JSON se lea en texto plano
     def codificar_datos(data):
         json_str = json.dumps(data, ensure_ascii=False)
         return base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
