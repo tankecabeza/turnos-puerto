@@ -207,10 +207,8 @@ if not st.session_state.autenticado:
         submit_btn = st.form_submit_button("Desbloquear Sistema", type="primary")
         
         if submit_btn:
-            # Extraemos todos los TIPs de la base de datos, PERO bloqueamos los TIPs de prueba, vacíos y "XXXXXXXX"
             tips_validos = [tip.upper() for tip in st.session_state.efectivos['TIP'].tolist() if tip.upper() not in ["XX", "", "XXXXXXXX"]]
             
-            # Puerta trasera de emergencia para administradores
             if usuario_input == "ADMIN" and pwd_input == "Puerto2026*":
                 st.session_state.autenticado = True
                 st.session_state.usuario_actual = "ADMIN"
@@ -220,7 +218,6 @@ if not st.session_state.autenticado:
                 pwd_hash = hashlib.sha256(pwd_input.encode()).hexdigest()
                 creds = st.session_state.credenciales
                 
-                # Comprobar si el usuario tiene contraseña personalizada
                 if usuario_input in creds:
                     if pwd_hash == creds[usuario_input]:
                         st.session_state.autenticado = True
@@ -229,7 +226,6 @@ if not st.session_state.autenticado:
                     else:
                         st.error("❌ Contraseña incorrecta.")
                 else:
-                    # Primer acceso: exige la contraseña maestra por defecto
                     hash_por_defecto = hashlib.sha256("Puerto2026*".encode()).hexdigest()
                     if pwd_hash == hash_por_defecto:
                         st.session_state.autenticado = True
@@ -530,21 +526,46 @@ with tab_diario:
     if num_ops > 0 or num_jefes > 0 or len(confrontas_seleccionados) > 0:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            st.caption("Regla de Antigüedad: El más antiguo tiene el número más alto, salvo si lo tuvo la última vez que trabajó.")
+            st.caption("Rueda de Antigüedad: Quien tuvo el último Nº más alto pasa hoy al Nº 1, y el resto escala posiciones en círculo por orden de antigüedad.")
             
-            df_ops = pd.DataFrame(ops_seleccionados)
-            df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000,1,1))
+            df_ops = pd.DataFrame(ops_seleccionados).sort_values(by="Orden", ascending=True).reset_index(drop=True)
+            df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000, 1, 1))
             
+            # Detectamos automáticamente quién tuvo el último número alto en la memoria
             max_fecha = df_ops["Ultimo_Maximo"].max()
-            df_ops["Orden_Calculo"] = df_ops["Orden"]
-            
+            nombre_pivote_auto = "(Antigüedad pura - Sin rotación previa)"
             if max_fecha > date(2000, 1, 1):
-                penalizados = df_ops[df_ops["Ultimo_Maximo"] == max_fecha]
+                # Si hay empate de fecha, tomamos el último en orden de antigüedad que ya haya rotado
+                penalizados = df_ops[df_ops["Ultimo_Maximo"] == max_fecha].sort_values(by="Orden", ascending=False)
                 if not penalizados.empty:
-                    idx_penalizado = penalizados.index[0]
-                    df_ops.loc[idx_penalizado, "Orden_Calculo"] = 999999
+                    nombre_pivote_auto = penalizados.iloc[0]["Nombre"]
+
+            opciones_pivote = ["(Antigüedad pura - Sin rotación previa)"] + df_ops["Nombre"].tolist()
+            idx_pivote = opciones_pivote.index(nombre_pivote_auto) if nombre_pivote_auto in opciones_pivote else 0
+
+            pivote_seleccionado = st.selectbox(
+                "🔄 ¿Quién tuvo el Nº más alto en el último servicio? (Hoy pasa al Nº 1 y rota el resto):",
+                options=opciones_pivote,
+                index=idx_pivote
+            )
+
+            # Cálculo de la Rueda Rotacional Continua
+            if pivote_seleccionado != "(Antigüedad pura - Sin rotación previa)":
+                orden_pivote = df_ops[df_ops["Nombre"] == pivote_seleccionado].iloc[0]["Orden"]
+
+                def calcular_posicion_rueda(orden_actual):
+                    if orden_actual == orden_pivote:
+                        return 999999  # Pasa al Nº 1 (final de la lista)
+                    elif orden_actual > orden_pivote:
+                        return orden_actual - orden_pivote  # Los siguientes en antigüedad suben a los números más altos
+                    else:
+                        return 1000 + orden_actual  # Da la vuelta a la rueda empezando por el más antiguo
+
+                df_ops["Orden_Calculo"] = df_ops["Orden"].apply(calcular_posicion_rueda)
+            else:
+                df_ops["Orden_Calculo"] = df_ops["Orden"]
             
-            df_ops = df_ops.sort_values(by="Orden_Calculo", ascending=True)
+            df_ops = df_ops.sort_values(by="Orden_Calculo", ascending=True).reset_index(drop=True)
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
             asignaciones_usuario = []
@@ -565,7 +586,7 @@ with tab_diario:
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
                         
-                        clave_unica = f"turno_limpio_{row['TIP']}_{num_ops}_{fecha_servicio}"
+                        clave_unica = f"turno_rueda_{row['TIP']}_{num_ops}_{fecha_servicio}_{pivote_seleccionado}"
                         
                         n_asignado = st.selectbox(
                             "Nº Asignado",
