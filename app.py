@@ -414,15 +414,26 @@ with tab_diario:
     num_ops = len(ops_seleccionados)
     num_jefes = len(jefes_seleccionados)
     
-    indice_defecto = 1 
+    # Selección automática: 2h si hay 3 op + jefe; 2h 20m si hay 5 op; 3h por defecto
     if num_ops == 3 and num_jefes >= 1:
         indice_defecto = 0
+    elif num_ops == 5:
+        indice_defecto = 1
+    else:
+        indice_defecto = 2
 
     col3, col4 = st.columns(2)
-    intervalo_horas = col3.selectbox("⏳ Rotación cada...", [2, 3, 4], index=indice_defecto, format_func=lambda x: f"{x} Horas")
+    intervalo_horas = col3.selectbox(
+        "⏳ Rotación cada...",
+        [2, 2.33, 3, 4],
+        index=indice_defecto,
+        format_func=lambda x: "2h 20m" if x == 2.33 else f"{x} Horas"
+    )
     
     if intervalo_horas == 2:
         def_puestos = "PUERTAS, POSTA, ROMA"
+    elif intervalo_horas == 2.33:
+        def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
     elif intervalo_horas == 3:
         def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
     else:
@@ -435,6 +446,27 @@ with tab_diario:
     # 5. MOTOR MATEMÁTICO Y GENERADOR
     # ==========================================
     def calcular_franjas(turno, intervalo):
+        if intervalo == 2.33:
+            if turno == "Noche":
+                franjas_img = ["19:00 a 21:20", "21:20 a 23:40", "23:40 a 02:00", "02:00 a 04:20", "04:20 a 07:00"]
+                franjas_texto = [
+                    "19:00 a 21:20",
+                    "21:20 a 23:40",
+                    "23:40 a 02:00",
+                    "02:00 a 04:20",
+                    "04:20 a 07:00"
+                ]
+            else:
+                franjas_img = ["07:00 a 09:20", "09:20 a 11:40", "11:40 a 14:00", "14:00 a 16:20", "16:20 a 19:00"]
+                franjas_texto = [
+                    "07:00 a 09:20",
+                    "09:20 a 11:40",
+                    "11:40 a 14:00",
+                    "14:00 a 16:20",
+                    "16:20 a 19:00"
+                ]
+            return franjas_img, franjas_texto
+
         start = 7 if turno == "Mañana" else 19
         slots = int(12 / intervalo)
         franjas_img = []
@@ -451,7 +483,9 @@ with tab_diario:
         if 'Nombre' in df_img.columns:
             df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=22)))
 
-        fig, ax = plt.subplots(figsize=(11.5, 1.1 * len(df) + 2.5))
+        num_franjas = len(df.columns) - 4
+        ancho_lienzo = 13.0 if num_franjas >= 5 else 11.5
+        fig, ax = plt.subplots(figsize=(ancho_lienzo, 1.1 * len(df) + 2.5))
         ax.axis('off')
         ax.axis('tight')
         
@@ -459,7 +493,8 @@ with tab_diario:
         table.auto_set_font_size(False)
         table.set_fontsize(9.5)
         
-        col_widths = [0.05, 0.12, 0.26, 0.21] + [0.10] * (len(df.columns) - 4)
+        ancho_col_franja = 0.11 if num_franjas == 5 else 0.10
+        col_widths = [0.05, 0.12, 0.26, 0.21] + [ancho_col_franja] * num_franjas
         for col_idx, width in enumerate(col_widths):
             if col_idx < len(df.columns):
                 table.get_celld()[(0, col_idx)].set_width(width)
@@ -472,7 +507,7 @@ with tab_diario:
             cell.set_edgecolor('#B0C4DE') 
             if row == 0:
                 cell.set_facecolor('#006B4C') 
-                cell.set_text_props(color='white', weight='bold', size=10)
+                cell.set_text_props(color='white', weight='bold', size=9.5 if num_franjas >= 5 else 10)
             else:
                 if df.iloc[row-1]['Nº'] == '-':
                     cell.set_facecolor('#E6F0EC') 
@@ -562,7 +597,18 @@ with tab_diario:
                 franjas_img, franjas_texto = calcular_franjas(tipo_turno, intervalo_horas)
                 titulo_cuadrante = f"CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}"
                 
-                texto = f"{titulo_cuadrante}\n\n"
+                # Bloque resumen para WhatsApp + Desglose de Novedades
+                meses_es = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+                mes_nombre = meses_es[fecha_servicio.month - 1]
+                texto = f"Servicio para la {tipo_turno.lower()} del día {fecha_servicio.day} de {mes_nombre} de {fecha_servicio.year}\n"
+                for nombre_jefe in jefes_seleccionados:
+                    texto += f"Jefe Turno : {nombre_jefe}.\n"
+                for nombre_conf in confrontas_seleccionados:
+                    texto += f"Confronta : {nombre_conf}.\n"
+                for _, row_res in numeros_editados.sort_values("Nº Asignado", ascending=False).iterrows():
+                    texto += f"{row_res['Nº Asignado']} {row_res['Nombre']}.\n"
+                
+                texto += f"\n{titulo_cuadrante}\n\n"
                 cuadrante_final = []
                 
                 for nombre_jefe in jefes_seleccionados:
