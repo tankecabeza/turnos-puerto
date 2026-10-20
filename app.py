@@ -382,9 +382,19 @@ with tab_diario:
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    opciones_jefe = ["(Ninguno)"] + nombres_lista_global
-    jefe_seleccionado = st.selectbox("⭐ Jefe de Turno", options=opciones_jefe)
-    jefes_seleccionados = [jefe_seleccionado] if jefe_seleccionado != "(Ninguno)" else []
+    # Selector múltiple para Jefe de Turno y Jefe Adjunto (ordenados automáticamente por antigüedad)
+    jefes_seleccionados_raw = st.multiselect(
+        "⭐ Jefe/s de Turno (Si eliges más de uno, el más antiguo será Jefe de Turno y el 2º Jefe Adjunto)",
+        options=nombres_lista_global,
+        placeholder="Selecciona uno o varios..."
+    )
+    df_jefes_ordenados = efectivos_global[efectivos_global["Nombre"].isin(jefes_seleccionados_raw)].sort_values(['Cat_Num', 'Orden'])
+    jefes_seleccionados = df_jefes_ordenados["Nombre"].tolist()
+    
+    if len(jefes_seleccionados) == 1:
+        st.caption(f"🎖️ **Jefe de Turno:** {jefes_seleccionados[0]}")
+    elif len(jefes_seleccionados) >= 2:
+        st.caption(f"🎖️ **Jefe de Turno:** {jefes_seleccionados[0]} &nbsp;|&nbsp; **Jefe Adjunto:** {', '.join(jefes_seleccionados[1:])}")
     
     opciones_confronta = ["(Ninguno)"] + [n for n in nombres_lista_global if n not in jefes_seleccionados]
     confronta_seleccionado = st.selectbox("📝 Confronta", options=opciones_confronta)
@@ -446,20 +456,20 @@ with tab_diario:
             if turno == "Noche":
                 franjas_img = ["19:00 a 21:20", "21:20 a 23:40", "23:40 a 02:00", "02:00 a 04:20", "04:20 a 07:00"]
                 franjas_texto = [
-                    "19:00 a 21:20",
-                    "21:20 a 23:40",
-                    "23:40 a 02:00",
-                    "02:00 a 04:20",
-                    "04:20 a 07:00"
+                    "19:00 h a 21:20 h",
+                    "21:20 h a 23:40 h",
+                    "23:40 h a 02:00 h",
+                    "02:00 h a 04:20 h",
+                    "04:20 h a 07:00 h"
                 ]
             else:
                 franjas_img = ["07:00 a 09:20", "09:20 a 11:40", "11:40 a 14:00", "14:00 a 16:20", "16:20 a 19:00"]
                 franjas_texto = [
-                    "07:00 a 09:20",
-                    "09:20 a 11:40",
-                    "11:40 a 14:00",
-                    "14:00 a 16:20",
-                    "16:20 a 19:00"
+                    "07:00 h a 09:20 h",
+                    "09:20 h a 11:40 h",
+                    "11:40 h a 14:00 h",
+                    "14:00 h a 16:20 h",
+                    "16:20 h a 19:00 h"
                 ]
             return franjas_img, franjas_texto
 
@@ -481,23 +491,24 @@ with tab_diario:
 
         num_franjas = len(df.columns) - 4
         ancho_lienzo = 13.0 if num_franjas >= 5 else 11.5
-        fig, ax = plt.subplots(figsize=(ancho_lienzo, 1.1 * len(df) + 2.5))
-        ax.axis('off')
-        ax.axis('tight')
+        alto_lienzo = 0.65 * (len(df) + 1)
         
-        table = ax.table(cellText=df_img.values, colLabels=df.columns, loc='center', cellLoc='center')
-        table.auto_set_font_size(False)
-        table.set_fontsize(9.5)
+        fig, ax = plt.subplots(figsize=(ancho_lienzo, alto_lienzo))
+        ax.axis('off')
         
         ancho_col_franja = 0.11 if num_franjas == 5 else 0.10
         col_widths = [0.05, 0.12, 0.26, 0.21] + [ancho_col_franja] * num_franjas
-        for col_idx, width in enumerate(col_widths):
-            if col_idx < len(df.columns):
-                table.get_celld()[(0, col_idx)].set_width(width)
-                for r in range(1, len(df) + 1):
-                    table.get_celld()[(r, col_idx)].set_width(width)
-                    
-        table.scale(1, 3.2)
+        
+        # bbox=[0, 0, 1, 1] ajusta la tabla al borde superior para que el título quede pegado sin huecos
+        table = ax.table(
+            cellText=df_img.values,
+            colLabels=df.columns,
+            colWidths=col_widths,
+            bbox=[0, 0, 1, 1],
+            cellLoc='center'
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(9.5)
         
         for (row, col), cell in table.get_celld().items():
             cell.set_edgecolor('#B0C4DE') 
@@ -515,10 +526,10 @@ with tab_diario:
                 if df.columns[col] == 'Rol':
                     cell.set_text_props(weight='bold')
         
-        plt.title(titulo, fontweight="bold", fontsize=15, color="#006B4C", pad=20)
+        ax.set_title(titulo, fontweight="bold", fontsize=15, color="#006B4C", pad=12)
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0.2, dpi=300)
         buf.seek(0)
         plt.close()
         return buf
@@ -531,11 +542,9 @@ with tab_diario:
             df_ops = pd.DataFrame(ops_seleccionados).sort_values(by="Orden", ascending=True).reset_index(drop=True)
             df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000, 1, 1))
             
-            # Detectamos automáticamente quién tuvo el último número alto en la memoria
             max_fecha = df_ops["Ultimo_Maximo"].max()
             nombre_pivote_auto = "(Antigüedad pura - Sin rotación previa)"
             if max_fecha > date(2000, 1, 1):
-                # Si hay empate de fecha, tomamos el último en orden de antigüedad que ya haya rotado
                 penalizados = df_ops[df_ops["Ultimo_Maximo"] == max_fecha].sort_values(by="Orden", ascending=False)
                 if not penalizados.empty:
                     nombre_pivote_auto = penalizados.iloc[0]["Nombre"]
@@ -549,17 +558,16 @@ with tab_diario:
                 index=idx_pivote
             )
 
-            # Cálculo de la Rueda Rotacional Continua
             if pivote_seleccionado != "(Antigüedad pura - Sin rotación previa)":
                 orden_pivote = df_ops[df_ops["Nombre"] == pivote_seleccionado].iloc[0]["Orden"]
 
                 def calcular_posicion_rueda(orden_actual):
                     if orden_actual == orden_pivote:
-                        return 999999  # Pasa al Nº 1 (final de la lista)
+                        return 999999
                     elif orden_actual > orden_pivote:
-                        return orden_actual - orden_pivote  # Los siguientes en antigüedad suben a los números más altos
+                        return orden_actual - orden_pivote
                     else:
-                        return 1000 + orden_actual  # Da la vuelta a la rueda empezando por el más antiguo
+                        return 1000 + orden_actual
 
                 df_ops["Orden_Calculo"] = df_ops["Orden"].apply(calcular_posicion_rueda)
             else:
@@ -597,6 +605,7 @@ with tab_diario:
                     asignaciones_usuario.append({
                         "Nombre": row["Nombre"],
                         "TIP": row["TIP"],
+                        "Orden": int(row["Orden"]),
                         "Nº Asignado": n_asignado
                     })
             
@@ -618,27 +627,19 @@ with tab_diario:
                 franjas_img, franjas_texto = calcular_franjas(tipo_turno, intervalo_horas)
                 titulo_cuadrante = f"CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}"
                 
-                # Bloque resumen para WhatsApp + Desglose de Novedades
-                meses_es = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
-                mes_nombre = meses_es[fecha_servicio.month - 1]
-                texto = f"Servicio para la {tipo_turno.lower()} del día {fecha_servicio.day} de {mes_nombre} de {fecha_servicio.year}\n"
-                for nombre_jefe in jefes_seleccionados:
-                    texto += f"Jefe Turno : {nombre_jefe}.\n"
-                for nombre_conf in confrontas_seleccionados:
-                    texto += f"Confronta : {nombre_conf}.\n"
-                for _, row_res in numeros_editados.sort_values("Nº Asignado", ascending=False).iterrows():
-                    texto += f"{row_res['Nº Asignado']} {row_res['Nombre']}.\n"
-                
-                texto += f"\n{titulo_cuadrante}\n\n"
+                texto = f"{titulo_cuadrante}\n\n"
                 cuadrante_final = []
                 
-                for nombre_jefe in jefes_seleccionados:
+                # 1. Jefes de Turno y Jefe Adjunto (por orden de antigüedad)
+                for idx_j, nombre_jefe in enumerate(jefes_seleccionados):
+                    rol_jefe = "JEFE DE TURNO" if idx_j == 0 else "JEFE ADJUNTO"
                     tip_jefe = efectivos_global[efectivos_global["Nombre"] == nombre_jefe].iloc[0]["TIP"]
-                    texto += f"JEFE DE TURNO: {nombre_jefe} ({tip_jefe})\n"
-                    fila_fija = {"Nº": "-", "TIP": tip_jefe, "Nombre": nombre_jefe, "Rol": "JEFE DE TURNO"}
+                    texto += f"{rol_jefe}: {nombre_jefe} ({tip_jefe})\n"
+                    fila_fija = {"Nº": "-", "TIP": tip_jefe, "Nombre": nombre_jefe, "Rol": rol_jefe}
                     for h in franjas_img: fila_fija[h] = "-"
                     cuadrante_final.append(fila_fija)
                     
+                # 2. Confronta
                 for nombre_conf in confrontas_seleccionados:
                     tip_conf = efectivos_global[efectivos_global["Nombre"] == nombre_conf].iloc[0]["TIP"]
                     texto += f"CONFRONTA: {nombre_conf} ({tip_conf})\n"
@@ -649,19 +650,27 @@ with tab_diario:
                 if jefes_seleccionados or confrontas_seleccionados:
                     texto += "\n"
                 
-                for _, row in numeros_editados.sort_values("Nº Asignado").iterrows():
+                # 3. Tabla para Imagen WhatsApp (ordenada por Nº Asignado: 1, 2, 3...)
+                for _, row in numeros_editados.sort_values("Nº Asignado", ascending=True).iterrows():
+                    tip_op = row["TIP"]
+                    n_asignado = row['Nº Asignado']
+                    fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
+                    
+                    for idx, h_img in enumerate(franjas_img):
+                        puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
+                        fila_op[h_img] = puesto
+                    
+                    cuadrante_final.append(fila_op)
+                
+                # 4. Texto para SIGO / Novedades (ordenado por Antigüedad y sin números de rotación)
+                for _, row in numeros_editados.sort_values("Orden", ascending=True).iterrows():
                     tip_op = row["TIP"]
                     n_asignado = row['Nº Asignado']
                     
                     texto += f"{row['Nombre']} ({tip_op})\n"
-                    fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
-                    
-                    for idx, (h_img, h_txt) in enumerate(zip(franjas_img, franjas_texto)):
+                    for idx, h_txt in enumerate(franjas_texto):
                         puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
-                        fila_op[h_img] = puesto
                         texto += f"{h_txt}: {puesto}\n"
-                    
-                    cuadrante_final.append(fila_op)
                     texto += "\n"
                 
                 df_final = pd.DataFrame(cuadrante_final)
