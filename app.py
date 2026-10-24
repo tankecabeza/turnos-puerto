@@ -221,6 +221,18 @@ plantilla_oficial = pd.DataFrame([
 if 'efectivos' not in st.session_state:
     plantilla_nube = cargar_plantilla()
     if plantilla_nube is not None and not plantilla_nube.empty:
+        cambios_auto = False
+        # Actualización automática del TIP de Iván Juárez si aún figuraba como XXXXXXXX
+        if "XXXXXXXX" in plantilla_nube["TIP"].values:
+            plantilla_nube.loc[plantilla_nube["Nombre"].str.contains("JUÁREZ VERDUGO", na=False), "TIP"] = "X10503B"
+            cambios_auto = True
+        # Inyección automática del Resto de la Plantilla si aún no existía en la base de datos
+        if "RESTO PLANTILLA" not in plantilla_nube["Categoria"].values:
+            df_resto_oficial = plantilla_oficial[plantilla_oficial["Categoria"] == "RESTO PLANTILLA"]
+            plantilla_nube = pd.concat([plantilla_nube, df_resto_oficial], ignore_index=True)
+            cambios_auto = True
+        if cambios_auto:
+            guardar_plantilla(plantilla_nube)
         st.session_state.efectivos = plantilla_nube
     else:
         guardar_plantilla(plantilla_oficial)
@@ -470,20 +482,23 @@ with tab_diario:
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden', 'Nombre'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    # Selector múltiple para Jefe de Turno y Jefe Adjunto
+    # Selector múltiple para Jefe de Turno y Jefe Adjunto (corregido para cuando está vacío)
     jefes_seleccionados_raw = st.multiselect(
         "⭐ Jefe/s de Turno (Si eliges más de uno, el 1º será Jefe de Turno y el 2º Jefe Adjunto)",
         options=nombres_lista_global,
         placeholder="Selecciona uno o varios..."
     )
-    # Conservamos el orden de antigüedad para Jefes/Resguardo, o el orden de selección si es del Resto de Plantilla
-    df_jefes_sel = efectivos_global[efectivos_global["Nombre"].isin(jefes_seleccionados_raw)].copy()
-    df_jefes_sel["Orden_Sel"] = df_jefes_sel.apply(
-        lambda r: r["Orden"] if r["Categoria"] in ["JEFE DE TURNO", "RESGUARDO FISCAL"] else 100 + jefes_seleccionados_raw.index(r["Nombre"]),
-        axis=1
-    )
-    df_jefes_ordenados = df_jefes_sel.sort_values(['Cat_Num', 'Orden_Sel'])
-    jefes_seleccionados = df_jefes_ordenados["Nombre"].tolist()
+    
+    if jefes_seleccionados_raw:
+        df_jefes_sel = efectivos_global[efectivos_global["Nombre"].isin(jefes_seleccionados_raw)].copy()
+        df_jefes_sel["Orden_Sel"] = [
+            r["Orden"] if r["Categoria"] in ["JEFE DE TURNO", "RESGUARDO FISCAL"] else 100 + jefes_seleccionados_raw.index(r["Nombre"])
+            for _, r in df_jefes_sel.iterrows()
+        ]
+        df_jefes_ordenados = df_jefes_sel.sort_values(['Cat_Num', 'Orden_Sel'])
+        jefes_seleccionados = df_jefes_ordenados["Nombre"].tolist()
+    else:
+        jefes_seleccionados = []
     
     if len(jefes_seleccionados) == 1:
         st.caption(f"🎖️ **Jefe de Turno:** {jefes_seleccionados[0]}")
@@ -525,8 +540,9 @@ with tab_diario:
         placeholder="Buscar por apellido o nombre..."
     )
     ops_refuerzos_seleccionados = []
-    for _, row_ref in df_resto_disponible[df_resto_disponible["Nombre"].isin(nombres_refuerzos_sel)].iterrows():
-        ops_refuerzos_seleccionados.append(row_ref)
+    if nombres_refuerzos_sel:
+        for _, row_ref in df_resto_disponible[df_resto_disponible["Nombre"].isin(nombres_refuerzos_sel)].iterrows():
+            ops_refuerzos_seleccionados.append(row_ref)
 
     num_ops = len(ops_fijos_seleccionados) + len(ops_refuerzos_seleccionados)
     num_jefes = len(jefes_seleccionados)
