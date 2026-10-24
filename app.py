@@ -136,6 +136,7 @@ else:
 # 3. CARGA INICIAL DE DATOS EXACTOS
 # ==========================================
 plantilla_oficial = pd.DataFrame([
+    # 1. JEFES DE TURNO HABITUALES
     {"Categoria": "JEFE DE TURNO", "TIP": "Q21989J", "Nombre": "SARGENTO 1º JUAN CARLOS GÁLVEZ ÁLVAREZ", "Orden": 1},
     {"Categoria": "JEFE DE TURNO", "TIP": "E57240M", "Nombre": "SARGENTO MARTIN RICO HUTCHISON", "Orden": 2},
     {"Categoria": "JEFE DE TURNO", "TIP": "X49035H", "Nombre": "CABO 1º DAVID MOSTAZO GARCÍA", "Orden": 3},
@@ -145,7 +146,7 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "JEFE DE TURNO", "TIP": "P44826Q", "Nombre": "GUARDIA CIVIL 1º MIGUEL ÁNGEL DUARTE SÁNCHEZ", "Orden": 7},
     {"Categoria": "JEFE DE TURNO", "TIP": "P58735T", "Nombre": "GUARDIA CIVIL MIGUEL MARTÍN DÍAZ", "Orden": 8},
     
-    # RESGUARDO FISCAL (PLANTILLA EXACTA Y ACTUALIZADA)
+    # 2. RESGUARDO FISCAL (GRUPO FIJO)
     {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
@@ -154,7 +155,67 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "RESGUARDO FISCAL", "TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 6},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 7},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "XXXXXXXX", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9}
+    {"Categoria": "RESGUARDO FISCAL", "TIP": "X10503B", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9},
+
+    # 3. RESTO DE PLANTILLA DE LA UNIDAD (ORDEN ALFABÉTICO POR APELLIDOS, SIN ANTIGÜEDAD)
+    {"Categoria": "RESTO PLANTILLA", "TIP": "R49856I", "Nombre": "AHMED RACHID, ZOHAIR", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "I51444D", "Nombre": "ALBA RAMAJO, ANDREA (TENIENTE)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "L26693P", "Nombre": "ALBAÑIL ALBAÑIL, ALEJANDRO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "W63047Y", "Nombre": "BERMEJO MORENO, JAVIER", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "H97426N", "Nombre": "BLANCO RODRÍGUEZ, ANTONIO GERMÁN", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "J14296K", "Nombre": "BRICEÑO ESCOBAR, ANTONIO (SARGENTO 1º)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "K18646N", "Nombre": "CANO RODRÍGUEZ, JULIÁN", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "V89107U", "Nombre": "CASTAÑEDA JIMÉNEZ, JAVIER", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "M50512C", "Nombre": "CERDÁN POSTIGO, FRANCISCO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "H19872X", "Nombre": "CUETO PADILLA, JOSÉ LUIS (GUARDIA 1º)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "Y32879A", "Nombre": "FERNÁNDEZ JUSTICIA, PABLO (G.A.P.)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "I12192V", "Nombre": "FERNÁNDEZ TOMÉ, GONZALO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "G45948Z", "Nombre": "GAITÁN LÓPEZ, JOSÉ ANTONIO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "R54704P", "Nombre": "GÁLVEZ SÁNCHEZ RANDO, JOSÉ ANTONIO (CABO 1º)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "W29740H", "Nombre": "GÁMEZ ÁVILA, MIGUEL ÁNGEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "Y74264M", "Nombre": "GARCÍA NAVIA, GERMÁN (BRIGADA)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "B69631D", "Nombre": "GARCÍA ORTEGA, FRANCISCO MANUEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "P90329E", "Nombre": "GIL GARCÍA, JUAN ANTONIO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "H44555F", "Nombre": "GIL ROMERO, JOSÉ ANTONIO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "B29544C", "Nombre": "GÓMEZ JURADO, ANTONIO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "P30694P", "Nombre": "GONZÁLEZ DOMÍNGUEZ, FERNANDO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "L98185Y", "Nombre": "GONZÁLEZ GONZÁLEZ, MARÍA NATALIA", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "T17416E", "Nombre": "GONZÁLEZ SEVILLA, ANA ISABEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "N86843Y", "Nombre": "GUTIÉRREZ ANAYA, JOSÉ MANUEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "I52251V", "Nombre": "HERNÁNDEZ GONZÁLEZ, JAVIER", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "I58896H", "Nombre": "LARA PALOMO, RAFAEL (SARGENTO 1º)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "H00165H", "Nombre": "LIÑÁN PÁEZ, JOSÉ ANTONIO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "M56747G", "Nombre": "LÓPEZ CARRILLO, VICENTE", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "V22287Y", "Nombre": "LÓPEZ PERALES, RAÚL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "M66973T", "Nombre": "LÓPEZ RUEDA, JOSÉ RAMÓN", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "J36746N", "Nombre": "LOZANO PEÑAS, JOSÉ", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "A69961K", "Nombre": "LUQUE MARÍN, FRANCISCO (SUBTENIENTE)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "H50953S", "Nombre": "MARTÍN MARTÍN, PEDRO ALFONSO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "N08103C", "Nombre": "MARTÍNEZ BOUAZZAOUI, FOUAD", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "N55757Y", "Nombre": "MILLÁN HEDRERA, RAFAEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "Z74474D", "Nombre": "MOHAND AISSA, MIMUN", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "E32722J", "Nombre": "OLMO VALLE, DANIEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "B14732T", "Nombre": "ORTEGA MONTIEL, DAMIÁN", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "M64419Z", "Nombre": "PALMA MARTÍN, FANNY", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "S54697I", "Nombre": "PASCUAL GARCÍA, RAFAEL ANTONIO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "T30946G", "Nombre": "PEREIRA JIMÉNEZ, JOSÉ LUIS", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "K86275E", "Nombre": "PÉREZ MOSTAZO, MIGUEL (CABO 1º)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "L29418N", "Nombre": "RAMÍREZ GONZÁLEZ, FRANCISCO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "E05615U", "Nombre": "ROLDÁN GARCÍA, MANUEL JESÚS", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "R15523R", "Nombre": "ROSA VERA, MARÍA FLOR", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "Q49522E", "Nombre": "RUBIO NÚÑEZ, MIGUEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "W20433X", "Nombre": "RUIZ MORENO, FRANCISCO JAVIER", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "J22270M", "Nombre": "RUIZ RUIZ, DAVID", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "C61529C", "Nombre": "SÁNCHEZ JUÁREZ, NORBERTO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "G91609K", "Nombre": "SÁNCHEZ MARTÍN, PEDRO MANUEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "K09011V", "Nombre": "SÁNCHEZ MEDINA, JOSÉ ALBERTO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "P61552X", "Nombre": "SÁNCHEZ REINA, JESÚS MARÍA", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "U49148U", "Nombre": "SANTILLANA BRUNET, ROCÍO (G.A.P.)", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "I72545K", "Nombre": "SANTOS FONTALVA, JOSÉ ANTONIO", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "Y91516U", "Nombre": "SANTOS FONTALVA, LUCAS", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "D71103L", "Nombre": "SUÁREZ SILVENTE, JOSÉ MARÍA", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "C82404J", "Nombre": "TIRADO ROMERO, DANIEL", "Orden": 0},
+    {"Categoria": "RESTO PLANTILLA", "TIP": "A22691J", "Nombre": "ZAYAS RUIZ, FRANCISCO JOSÉ", "Orden": 0}
 ])
 
 if 'efectivos' not in st.session_state:
@@ -207,7 +268,14 @@ if not st.session_state.autenticado:
         submit_btn = st.form_submit_button("Desbloquear Sistema", type="primary")
         
         if submit_btn:
-            tips_validos = [tip.upper() for tip in st.session_state.efectivos['TIP'].tolist() if tip.upper() not in ["XX", "", "XXXXXXXX"]]
+            # Solo tienen acceso de login los titulares de JEFE DE TURNO y RESGUARDO FISCAL (excluyendo eventuales como X10503B)
+            df_autorizados = st.session_state.efectivos[
+                st.session_state.efectivos['Categoria'].isin(['JEFE DE TURNO', 'RESGUARDO FISCAL'])
+            ]
+            tips_validos = [
+                tip.upper() for tip in df_autorizados['TIP'].tolist()
+                if tip.upper() not in ["XX", "", "XXXXXXXX", "X10503B"]
+            ]
             
             if usuario_input == "ADMIN" and pwd_input == "Puerto2026*":
                 st.session_state.autenticado = True
@@ -286,12 +354,15 @@ with tab_plantilla:
     
     with st.expander("➕ AÑADIR NUEVO COMPONENTE", expanded=False):
         col_c, col_o = st.columns(2)
-        nueva_cat = col_c.radio("Categoría", ["JEFE DE TURNO", "RESGUARDO FISCAL"])
+        nueva_cat = col_c.radio("Categoría", ["JEFE DE TURNO", "RESGUARDO FISCAL", "RESTO PLANTILLA"])
         
-        max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max()
-        siguiente_orden = int(max_orden_actual + 1) if pd.notna(max_orden_actual) else 1
-        
-        nuevo_orden = col_o.number_input("Nº de Antigüedad", min_value=1, value=siguiente_orden)
+        if nueva_cat == "RESTO PLANTILLA":
+            col_o.caption("El resto de la plantilla se ordena alfabéticamente (sin nº de antigüedad).")
+            nuevo_orden = 0
+        else:
+            max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max()
+            siguiente_orden = int(max_orden_actual + 1) if pd.notna(max_orden_actual) else 1
+            nuevo_orden = col_o.number_input("Nº de Antigüedad", min_value=1, value=siguiente_orden)
         
         col_n1, col_n2 = st.columns(2)
         nuevo_nombre = col_n1.text_input("Nombre Completo")
@@ -309,16 +380,27 @@ with tab_plantilla:
     st.write("### 👥 Plantilla Actual")
     editados = []
 
-    def renderizar_tarjetas(df_sub, titulo):
+    def renderizar_tarjetas(df_sub, titulo, mostrar_orden=True):
         st.markdown(f"#### {titulo}")
-        df_sub = df_sub.sort_values("Orden").reset_index(drop=True)
-        for _, row in df_sub.iterrows():
-            clave_unica = f"{row['Nombre']}_{row['TIP']}"
-            with st.expander(f"{row['Orden']} - {row['Nombre']} ({row['TIP']})"):
-                c1, c2, c3 = st.columns([1, 2, 1])
-                e_orden = c1.number_input("Orden", value=int(row['Orden']), key=f"ord_{clave_unica}")
-                e_nombre = c2.text_input("Nombre", value=row['Nombre'], key=f"nom_{clave_unica}")
-                e_tip = c3.text_input("TIP", value=row['TIP'], key=f"tip_{clave_unica}")
+        if mostrar_orden:
+            df_sub = df_sub.sort_values("Orden").reset_index(drop=True)
+        else:
+            df_sub = df_sub.sort_values("Nombre").reset_index(drop=True)
+            
+        for idx_r, row in df_sub.iterrows():
+            clave_unica = f"{row['Categoria']}_{row['Nombre']}_{row['TIP']}_{idx_r}"
+            etiqueta = f"{row['Orden']} - {row['Nombre']} ({row['TIP']})" if mostrar_orden else f"{row['Nombre']} ({row['TIP']})"
+            with st.expander(etiqueta):
+                if mostrar_orden:
+                    c1, c2, c3 = st.columns([1, 2, 1])
+                    e_orden = c1.number_input("Orden", value=int(row['Orden']), key=f"ord_{clave_unica}")
+                    e_nombre = c2.text_input("Nombre", value=row['Nombre'], key=f"nom_{clave_unica}")
+                    e_tip = c3.text_input("TIP", value=row['TIP'], key=f"tip_{clave_unica}")
+                else:
+                    c2, c3 = st.columns([3, 1])
+                    e_orden = 0
+                    e_nombre = c2.text_input("Nombre", value=row['Nombre'], key=f"nom_{clave_unica}")
+                    e_tip = c3.text_input("TIP", value=row['TIP'], key=f"tip_{clave_unica}")
                 
                 eliminar = st.checkbox("Eliminar componente", key=f"del_{clave_unica}")
                 if not eliminar:
@@ -329,8 +411,10 @@ with tab_plantilla:
                         "Orden": int(e_orden)
                     })
 
-    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno")
-    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)")
+    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno", mostrar_orden=True)
+    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)", mostrar_orden=True)
+    with st.expander("📋 Ver / Editar Resto de Plantilla de la Unidad (Orden Alfabético)", expanded=False):
+        renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESTO PLANTILLA'], "👥 Resto de Plantilla", mostrar_orden=False)
 
     if st.button("💾 GUARDAR CAMBIOS EN LA BASE DE DATOS", type="primary"):
         nueva_plantilla = pd.DataFrame(editados)
@@ -350,14 +434,14 @@ with tab_plantilla:
     with st.expander("⚠️ Zona de Peligro (Cuidado)"):
         st.warning("Estos botones borrarán tus configuraciones actuales.")
         
-        if st.button("🔄 Volver a la plantilla original de fábrica (Borrará tus modificaciones)"):
+        if st.button("🔄 Volver a la plantilla original de fábrica (Cargar toda la unidad y TIP de Iván)"):
             guardar_plantilla(plantilla_oficial)
             st.session_state.efectivos = plantilla_oficial
             for _, row in plantilla_oficial.iterrows():
                 if row["Nombre"] not in st.session_state.historial:
                     st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
             guardar_memoria(st.session_state.historial)
-            st.success("✅ Plantilla reseteada a los valores de fábrica.")
+            st.success("✅ Plantilla reseteada y actualizada con toda la unidad.")
             st.rerun()
             
         if st.button("🗑️ Resetear historial de rotaciones (Antigüedad pura)", key="reset_plantilla"):
@@ -378,17 +462,27 @@ with tab_diario:
     st.write("### 👥 Asignación de Roles")
     
     efectivos_global = st.session_state.efectivos.copy()
-    efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({'JEFE DE TURNO': 1, 'RESGUARDO FISCAL': 2})
-    efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden'])
+    efectivos_global['Cat_Num'] = efectivos_global['Categoria'].map({
+        'JEFE DE TURNO': 1,
+        'RESGUARDO FISCAL': 2,
+        'RESTO PLANTILLA': 3
+    }).fillna(3)
+    efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden', 'Nombre'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    # Selector múltiple para Jefe de Turno y Jefe Adjunto (ordenados automáticamente por antigüedad)
+    # Selector múltiple para Jefe de Turno y Jefe Adjunto
     jefes_seleccionados_raw = st.multiselect(
-        "⭐ Jefe/s de Turno (Si eliges más de uno, el más antiguo será Jefe de Turno y el 2º Jefe Adjunto)",
+        "⭐ Jefe/s de Turno (Si eliges más de uno, el 1º será Jefe de Turno y el 2º Jefe Adjunto)",
         options=nombres_lista_global,
         placeholder="Selecciona uno o varios..."
     )
-    df_jefes_ordenados = efectivos_global[efectivos_global["Nombre"].isin(jefes_seleccionados_raw)].sort_values(['Cat_Num', 'Orden'])
+    # Conservamos el orden de antigüedad para Jefes/Resguardo, o el orden de selección si es del Resto de Plantilla
+    df_jefes_sel = efectivos_global[efectivos_global["Nombre"].isin(jefes_seleccionados_raw)].copy()
+    df_jefes_sel["Orden_Sel"] = df_jefes_sel.apply(
+        lambda r: r["Orden"] if r["Categoria"] in ["JEFE DE TURNO", "RESGUARDO FISCAL"] else 100 + jefes_seleccionados_raw.index(r["Nombre"]),
+        axis=1
+    )
+    df_jefes_ordenados = df_jefes_sel.sort_values(['Cat_Num', 'Orden_Sel'])
     jefes_seleccionados = df_jefes_ordenados["Nombre"].tolist()
     
     if len(jefes_seleccionados) == 1:
@@ -401,8 +495,8 @@ with tab_diario:
     confrontas_seleccionados = [confronta_seleccionado] if confronta_seleccionado != "(Ninguno)" else []
     
     st.write("---")
-    st.write("🛡️ **Resguardo Fiscal** (Activa los componentes en rotación)")
-    ops_seleccionados = []
+    st.write("🛡️ **Resguardo Fiscal** (Activa los componentes fijos del grupo en rotación)")
+    ops_fijos_seleccionados = []
     
     df_operativos_solo = efectivos_global[efectivos_global['Categoria'] == 'RESGUARDO FISCAL'].sort_values("Orden")
     
@@ -415,9 +509,26 @@ with tab_diario:
                     st.caption(f"TIP: {row['TIP']} | Nº Antigüedad: {row['Orden']}")
                 with col_der:
                     if st.toggle("Sí", key=f"tog_{row['TIP']}", label_visibility="collapsed"):
-                        ops_seleccionados.append(row)
+                        ops_fijos_seleccionados.append(row)
 
-    num_ops = len(ops_seleccionados)
+    # Selección de Refuerzos del Resto de la Plantilla (por orden alfabético)
+    st.write("➕ **Resto de Plantilla (Refuerzos para el turno)**")
+    df_resto_disponible = efectivos_global[
+        (efectivos_global['Categoria'] == 'RESTO PLANTILLA') &
+        (~efectivos_global['Nombre'].isin(jefes_seleccionados)) &
+        (~efectivos_global['Nombre'].isin(confrontas_seleccionados))
+    ].sort_values("Nombre")
+    
+    nombres_refuerzos_sel = st.multiselect(
+        "Selecciona uno o varios componentes de la unidad que refuercen hoy el grupo (Orden alfabético):",
+        options=df_resto_disponible["Nombre"].tolist(),
+        placeholder="Buscar por apellido o nombre..."
+    )
+    ops_refuerzos_seleccionados = []
+    for _, row_ref in df_resto_disponible[df_resto_disponible["Nombre"].isin(nombres_refuerzos_sel)].iterrows():
+        ops_refuerzos_seleccionados.append(row_ref)
+
+    num_ops = len(ops_fijos_seleccionados) + len(ops_refuerzos_seleccionados)
     num_jefes = len(jefes_seleccionados)
     
     # Selección automática: 2h si hay 3 op + jefe; 2h 20m si hay 5 op; 3h por defecto
@@ -499,7 +610,6 @@ with tab_diario:
         ancho_col_franja = 0.11 if num_franjas == 5 else 0.10
         col_widths = [0.05, 0.12, 0.26, 0.21] + [ancho_col_franja] * num_franjas
         
-        # bbox=[0, 0, 1, 1] ajusta la tabla al borde superior para que el título quede pegado sin huecos
         table = ax.table(
             cellText=df_img.values,
             colLabels=df.columns,
@@ -537,43 +647,61 @@ with tab_diario:
     if num_ops > 0 or num_jefes > 0 or len(confrontas_seleccionados) > 0:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            st.caption("Rueda de Antigüedad: Quien tuvo el último Nº más alto pasa hoy al Nº 1, y el resto escala posiciones en círculo por orden de antigüedad.")
+            st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
-            df_ops = pd.DataFrame(ops_seleccionados).sort_values(by="Orden", ascending=True).reset_index(drop=True)
-            df_ops["Ultimo_Maximo"] = df_ops["Nombre"].map(st.session_state.historial).fillna(date(2000, 1, 1))
-            
-            max_fecha = df_ops["Ultimo_Maximo"].max()
-            nombre_pivote_auto = "(Antigüedad pura - Sin rotación previa)"
-            if max_fecha > date(2000, 1, 1):
-                penalizados = df_ops[df_ops["Ultimo_Maximo"] == max_fecha].sort_values(by="Orden", ascending=False)
-                if not penalizados.empty:
-                    nombre_pivote_auto = penalizados.iloc[0]["Nombre"]
+            # 1. Rueda rotacional entre los fijos del grupo
+            if len(ops_fijos_seleccionados) > 0:
+                df_fijos = pd.DataFrame(ops_fijos_seleccionados).sort_values(by="Orden", ascending=True).reset_index(drop=True)
+                df_fijos["Ultimo_Maximo"] = df_fijos["Nombre"].map(st.session_state.historial).fillna(date(2000, 1, 1))
+                df_fijos["Es_Refuerzo"] = False
+                
+                max_fecha = df_fijos["Ultimo_Maximo"].max()
+                nombre_pivote_auto = "(Antigüedad pura - Sin rotación previa)"
+                if max_fecha > date(2000, 1, 1):
+                    penalizados = df_fijos[df_fijos["Ultimo_Maximo"] == max_fecha].sort_values(by="Orden", ascending=False)
+                    if not penalizados.empty:
+                        nombre_pivote_auto = penalizados.iloc[0]["Nombre"]
 
-            opciones_pivote = ["(Antigüedad pura - Sin rotación previa)"] + df_ops["Nombre"].tolist()
-            idx_pivote = opciones_pivote.index(nombre_pivote_auto) if nombre_pivote_auto in opciones_pivote else 0
+                opciones_pivote = ["(Antigüedad pura - Sin rotación previa)"] + df_fijos["Nombre"].tolist()
+                idx_pivote = opciones_pivote.index(nombre_pivote_auto) if nombre_pivote_auto in opciones_pivote else 0
 
-            pivote_seleccionado = st.selectbox(
-                "🔄 ¿Quién tuvo el Nº más alto en el último servicio? (Hoy pasa al Nº 1 y rota el resto):",
-                options=opciones_pivote,
-                index=idx_pivote
-            )
+                pivote_seleccionado = st.selectbox(
+                    "🔄 ¿Quién del grupo fijo tuvo el Nº más alto en el último servicio? (Pasa al Nº bajo y rota el resto):",
+                    options=opciones_pivote,
+                    index=idx_pivote
+                )
 
-            if pivote_seleccionado != "(Antigüedad pura - Sin rotación previa)":
-                orden_pivote = df_ops[df_ops["Nombre"] == pivote_seleccionado].iloc[0]["Orden"]
+                if pivote_seleccionado != "(Antigüedad pura - Sin rotación previa)":
+                    orden_pivote = df_fijos[df_fijos["Nombre"] == pivote_seleccionado].iloc[0]["Orden"]
 
-                def calcular_posicion_rueda(orden_actual):
-                    if orden_actual == orden_pivote:
-                        return 999999
-                    elif orden_actual > orden_pivote:
-                        return orden_actual - orden_pivote
-                    else:
-                        return 1000 + orden_actual
+                    def calcular_posicion_rueda(orden_actual):
+                        if orden_actual == orden_pivote:
+                            return 999999
+                        elif orden_actual > orden_pivote:
+                            return orden_actual - orden_pivote
+                        else:
+                            return 1000 + orden_actual
 
-                df_ops["Orden_Calculo"] = df_ops["Orden"].apply(calcular_posicion_rueda)
+                    df_fijos["Orden_Calculo"] = df_fijos["Orden"].apply(calcular_posicion_rueda)
+                else:
+                    df_fijos["Orden_Calculo"] = df_fijos["Orden"]
+                
+                df_fijos = df_fijos.sort_values(by="Orden_Calculo", ascending=True).reset_index(drop=True)
             else:
-                df_ops["Orden_Calculo"] = df_ops["Orden"]
-            
-            df_ops = df_ops.sort_values(by="Orden_Calculo", ascending=True).reset_index(drop=True)
+                df_fijos = pd.DataFrame()
+                pivote_seleccionado = "ninguno"
+
+            # 2. Añadimos los refuerzos al listado de asignación de números
+            if len(ops_refuerzos_seleccionados) > 0:
+                df_ref = pd.DataFrame(ops_refuerzos_seleccionados).sort_values(by="Nombre", ascending=True).reset_index(drop=True)
+                df_ref["Ultimo_Maximo"] = date(2000, 1, 1)
+                df_ref["Es_Refuerzo"] = True
+                df_ref["Orden_Calculo"] = 2000000
+                df_ref["Orden"] = range(100, 100 + len(df_ref))
+                df_ops = pd.concat([df_fijos, df_ref], ignore_index=True) if not df_fijos.empty else df_ref
+            else:
+                df_ops = df_fijos
+
             df_ops["Sugerido"] = range(num_ops, 0, -1)
             
             asignaciones_usuario = []
@@ -585,11 +713,14 @@ with tab_diario:
                     with col_n1:
                         st.markdown(f"**{row['Nombre']}**")
                         
-                        fecha_str = "Sin registro" if row["Ultimo_Maximo"] == date(2000, 1, 1) else row["Ultimo_Maximo"].strftime('%d/%m/%Y')
-                        st.caption(f"Nº Antigüedad: {row['Orden']} | Último Nº Alto: {fecha_str}")
-                        
-                        if row["Orden_Calculo"] == 999999:
-                            st.markdown("⚠️ <span style='color:#D32F2F; font-size:0.9em;'>Pasa al Nº 1 (Tuvo el último alto)</span>", unsafe_allow_html=True)
+                        if row["Es_Refuerzo"]:
+                            st.caption(f"TIP: {row['TIP']} | ➕ **Refuerzo de Unidad** (Asignar Nº manualmente)")
+                        else:
+                            fecha_str = "Sin registro" if row["Ultimo_Maximo"] == date(2000, 1, 1) else row["Ultimo_Maximo"].strftime('%d/%m/%Y')
+                            st.caption(f"Nº Antigüedad: {row['Orden']} | Último Nº Alto: {fecha_str}")
+                            
+                            if row["Orden_Calculo"] == 999999:
+                                st.markdown("⚠️ <span style='color:#D32F2F; font-size:0.9em;'>Tuvo el último alto</span>", unsafe_allow_html=True)
 
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
@@ -606,6 +737,7 @@ with tab_diario:
                         "Nombre": row["Nombre"],
                         "TIP": row["TIP"],
                         "Orden": int(row["Orden"]),
+                        "Es_Refuerzo": bool(row["Es_Refuerzo"]),
                         "Nº Asignado": n_asignado
                     })
             
@@ -619,10 +751,15 @@ with tab_diario:
                 boton_generar = st.button("🚀 Confirmar Rotación y Generar", type="primary")
                 
             if boton_generar:
-                nombre_max = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]["Nombre"]
-                
-                st.session_state.historial[nombre_max] = fecha_servicio
-                guardar_memoria(st.session_state.historial)
+                # Guardamos en la memoria quién de los fijos del grupo se llevó hoy el número más alto entre los fijos
+                fijos_hoy = numeros_editados[~numeros_editados["Es_Refuerzo"]]
+                if not fijos_hoy.empty:
+                    max_num_fijo = fijos_hoy["Nº Asignado"].max()
+                    nombre_max = fijos_hoy[fijos_hoy["Nº Asignado"] == max_num_fijo].iloc[0]["Nombre"]
+                    st.session_state.historial[nombre_max] = fecha_servicio
+                    guardar_memoria(st.session_state.historial)
+                else:
+                    nombre_max = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]["Nombre"]
                 
                 franjas_img, franjas_texto = calcular_franjas(tipo_turno, intervalo_horas)
                 titulo_cuadrante = f"CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}"
@@ -630,7 +767,7 @@ with tab_diario:
                 texto = f"{titulo_cuadrante}\n\n"
                 cuadrante_final = []
                 
-                # 1. Jefes de Turno y Jefe Adjunto (por orden de antigüedad)
+                # 1. Jefes de Turno y Jefe Adjunto
                 for idx_j, nombre_jefe in enumerate(jefes_seleccionados):
                     rol_jefe = "JEFE DE TURNO" if idx_j == 0 else "JEFE ADJUNTO"
                     tip_jefe = efectivos_global[efectivos_global["Nombre"] == nombre_jefe].iloc[0]["TIP"]
@@ -662,8 +799,8 @@ with tab_diario:
                     
                     cuadrante_final.append(fila_op)
                 
-                # 4. Texto para SIGO / Novedades (ordenado por Antigüedad y sin números de rotación)
-                for _, row in numeros_editados.sort_values("Orden", ascending=True).iterrows():
+                # 4. Texto para SIGO / Novedades (fijos por Antigüedad y después refuerzos por orden alfabético)
+                for _, row in numeros_editados.sort_values(["Es_Refuerzo", "Orden", "Nombre"], ascending=[True, True, True]).iterrows():
                     tip_op = row["TIP"]
                     n_asignado = row['Nº Asignado']
                     
