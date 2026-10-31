@@ -157,7 +157,7 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "X10503B", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9},
 
-    # 3. RESTO DE PLANTILLA DE LA UNIDAD (ORDEN ALFABÉTICO POR APELLIDOS, SIN ANTIGÜEDAD)
+    # 3. RESTO DE PLANTILLA DE LA UNIDAD (ORDEN ALFABÉTICO POR APELLIDOS)
     {"Categoria": "RESTO PLANTILLA", "TIP": "R49856I", "Nombre": "AHMED RACHID, ZOHAIR", "Orden": 0},
     {"Categoria": "RESTO PLANTILLA", "TIP": "I51444D", "Nombre": "ALBA RAMAJO, ANDREA (TENIENTE)", "Orden": 0},
     {"Categoria": "RESTO PLANTILLA", "TIP": "L26693P", "Nombre": "ALBAÑIL ALBAÑIL, ALEJANDRO", "Orden": 0},
@@ -479,7 +479,6 @@ with tab_diario:
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden', 'Nombre'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    # Selector múltiple para Jefe de Turno y Jefe Adjunto
     jefes_seleccionados_raw = st.multiselect(
         "⭐ Jefe/s de Turno (El 1º será Jefe de Turno y el 2º Jefe Adjunto)",
         options=nombres_lista_global,
@@ -504,7 +503,6 @@ with tab_diario:
     
     opciones_confronta_disp = [n for n in nombres_lista_global if n not in jefes_seleccionados]
     
-    # Selector MÚLTIPLE para Confronta
     confrontas_seleccionados_raw = st.multiselect(
         "📝 Confronta (Puedes elegir uno o varios)", 
         options=opciones_confronta_disp,
@@ -539,7 +537,6 @@ with tab_diario:
                     if st.toggle("Sí", key=f"tog_{row['TIP']}", label_visibility="collapsed"):
                         ops_fijos_seleccionados.append(row)
 
-    # Selección de Refuerzos
     st.write("➕ **Resto de Plantilla (Refuerzos para el turno)**")
     df_resto_disponible = efectivos_global[
         (efectivos_global['Categoria'] == 'RESTO PLANTILLA') &
@@ -548,7 +545,7 @@ with tab_diario:
     ].sort_values("Nombre")
     
     nombres_refuerzos_sel = st.multiselect(
-        "Selecciona uno o varios componentes de la unidad que refuercen hoy el grupo (Orden alfabético):",
+        "Selecciona uno o varios componentes que refuercen hoy (Orden alfabético):",
         options=df_resto_disponible["Nombre"].tolist(),
         placeholder="Buscar por apellido o nombre..."
     )
@@ -560,6 +557,7 @@ with tab_diario:
     num_ops = len(ops_fijos_seleccionados) + len(ops_refuerzos_seleccionados)
     num_jefes = len(jefes_seleccionados)
     
+    st.write("---")
     modo_vigilancia = st.toggle("🚨 MODO VIGILANCIA: Activar puesto provisional (PARRILLA)")
     
     if num_ops == 3 and num_jefes >= 1:
@@ -577,28 +575,23 @@ with tab_diario:
         format_func=lambda x: "2h 20m" if x == 2.33 else f"{x} Horas"
     )
     
-    # Lógica de asignación matemática de puestos (Modo normal vs Modo Vigilancia)
-    if modo_vigilancia:
-        # En vigilancia creamos una lista que es exactamente 1 puesto más larga que el nº de slots.
-        # De esta forma, el Nº 1 empieza en índice 0 (PUERTAS) y termina en el penúltimo índice (ROMA).
-        # El Nº 2 termina exactamente un índice después (PARRILLA).
-        if intervalo_horas == 2:
-            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA, PARRILLA"
-        elif intervalo_horas == 2.33:
-            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA, PARRILLA"
-        elif intervalo_horas == 3:
-            def_puestos = "PUERTAS, POSTA, POSTA, ROMA, PARRILLA"
+    # Generador dinámico de puestos según el número de operadores seleccionados (Para evitar huecos vacíos)
+    if num_ops > 0:
+        if modo_vigilancia:
+            if num_ops >= 3:
+                num_postas = num_ops - 3
+                def_puestos_list = ["PARRILLA", "PUERTAS"] + (["POSTA"] * num_postas) + ["ROMA"]
+            else:
+                def_puestos_list = ["PARRILLA", "PUERTAS", "ROMA"][:num_ops]
         else:
-            def_puestos = "PUERTAS, POSTA, ROMA, PARRILLA"
+            if num_ops >= 2:
+                num_postas = num_ops - 2
+                def_puestos_list = ["PUERTAS"] + (["POSTA"] * num_postas) + ["ROMA"]
+            else:
+                def_puestos_list = ["PUERTAS", "ROMA"][:num_ops]
+        def_puestos = ", ".join(def_puestos_list)
     else:
-        if intervalo_horas == 2:
-            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
-        elif intervalo_horas == 2.33:
-            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
-        elif intervalo_horas == 3:
-            def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
-        else:
-            def_puestos = "PUERTAS, POSTA, ROMA"
+        def_puestos = ""
         
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
@@ -609,23 +602,11 @@ with tab_diario:
     def calcular_franjas(turno, intervalo):
         if intervalo == 2.33:
             if turno == "Noche":
-                franjas_img = ["19:00 a 21:20", "21:20 a 23:40", "23:40 a 02:00", "02:00 a 04:20", "04:20 a 07:00"]
-                franjas_texto = [
-                    "19:00 h a 21:20 h",
-                    "21:20 h a 23:40 h",
-                    "23:40 h a 02:00 h",
-                    "02:00 h a 04:20 h",
-                    "04:20 h a 07:00 h"
-                ]
+                franjas_img = ["19/21:20", "21:20/23:40", "23:40/02", "02/04:20", "04:20/07"]
+                franjas_texto = ["19:00 h a 21:20 h", "21:20 h a 23:40 h", "23:40 h a 02:00 h", "02:00 h a 04:20 h", "04:20 h a 07:00 h"]
             else:
-                franjas_img = ["07:00 a 09:20", "09:20 a 11:40", "11:40 a 14:00", "14:00 a 16:20", "16:20 a 19:00"]
-                franjas_texto = [
-                    "07:00 h a 09:20 h",
-                    "09:20 h a 11:40 h",
-                    "11:40 h a 14:00 h",
-                    "14:00 h a 16:20 h",
-                    "16:20 h a 19:00 h"
-                ]
+                franjas_img = ["07/09:20", "09:20/11:40", "11:40/14", "14/16:20", "16:20/19"]
+                franjas_texto = ["07:00 h a 09:20 h", "09:20 h a 11:40 h", "11:40 h a 14:00 h", "14:00 h a 16:20 h", "16:20 h a 19:00 h"]
             return franjas_img, franjas_texto
 
         start = 7 if turno == "Mañana" else 19
@@ -646,7 +627,6 @@ with tab_diario:
 
         num_franjas = len(df.columns) - 4
         
-        # Ajuste dinámico del lienzo según el número de franjas para que no se apelmace
         if num_franjas >= 6:
             ancho_lienzo = 14.5
         elif num_franjas == 5:
@@ -730,7 +710,6 @@ with tab_diario:
 
                 if pivote_seleccionado != "(Antigüedad pura - Sin rotación previa)":
                     orden_pivote = df_fijos[df_fijos["Nombre"] == pivote_seleccionado].iloc[0]["Orden"]
-
                     def calcular_posicion_rueda(orden_actual):
                         if orden_actual == orden_pivote:
                             return 999999
@@ -738,7 +717,6 @@ with tab_diario:
                             return orden_actual - orden_pivote
                         else:
                             return 1000 + orden_actual
-
                     df_fijos["Orden_Calculo"] = df_fijos["Orden"].apply(calcular_posicion_rueda)
                 else:
                     df_fijos["Orden_Calculo"] = df_fijos["Orden"]
@@ -780,9 +758,7 @@ with tab_diario:
 
                     with col_n2:
                         default_idx = numeros_disponibles.index(row["Sugerido"])
-                        
                         clave_unica = f"turno_rueda_{row['TIP']}_{num_ops}_{fecha_servicio}_{pivote_seleccionado}"
-                        
                         n_asignado = st.selectbox(
                             "Nº Asignado",
                             options=numeros_disponibles,
