@@ -222,11 +222,9 @@ if 'efectivos' not in st.session_state:
     plantilla_nube = cargar_plantilla()
     if plantilla_nube is not None and not plantilla_nube.empty:
         cambios_auto = False
-        # Actualización automática del TIP de Iván Juárez si aún figuraba como XXXXXXXX
         if "XXXXXXXX" in plantilla_nube["TIP"].values:
             plantilla_nube.loc[plantilla_nube["Nombre"].str.contains("JUÁREZ VERDUGO", na=False), "TIP"] = "X10503B"
             cambios_auto = True
-        # Inyección automática del Resto de la Plantilla si aún no existía en la base de datos
         if "RESTO PLANTILLA" not in plantilla_nube["Categoria"].values:
             df_resto_oficial = plantilla_oficial[plantilla_oficial["Categoria"] == "RESTO PLANTILLA"]
             plantilla_nube = pd.concat([plantilla_nube, df_resto_oficial], ignore_index=True)
@@ -280,7 +278,6 @@ if not st.session_state.autenticado:
         submit_btn = st.form_submit_button("Desbloquear Sistema", type="primary")
         
         if submit_btn:
-            # Solo tienen acceso de login los titulares de JEFE DE TURNO y RESGUARDO FISCAL (excluyendo eventuales como X10503B)
             df_autorizados = st.session_state.efectivos[
                 st.session_state.efectivos['Categoria'].isin(['JEFE DE TURNO', 'RESGUARDO FISCAL'])
             ]
@@ -482,9 +479,9 @@ with tab_diario:
     efectivos_global = efectivos_global.sort_values(['Cat_Num', 'Orden', 'Nombre'])
     nombres_lista_global = efectivos_global["Nombre"].tolist()
     
-    # Selector múltiple para Jefe de Turno y Jefe Adjunto (corregido para cuando está vacío)
+    # Selector múltiple para Jefe de Turno y Jefe Adjunto
     jefes_seleccionados_raw = st.multiselect(
-        "⭐ Jefe/s de Turno (Si eliges más de uno, el 1º será Jefe de Turno y el 2º Jefe Adjunto)",
+        "⭐ Jefe/s de Turno (El 1º será Jefe de Turno y el 2º Jefe Adjunto)",
         options=nombres_lista_global,
         placeholder="Selecciona uno o varios..."
     )
@@ -505,9 +502,25 @@ with tab_diario:
     elif len(jefes_seleccionados) >= 2:
         st.caption(f"🎖️ **Jefe de Turno:** {jefes_seleccionados[0]} &nbsp;|&nbsp; **Jefe Adjunto:** {', '.join(jefes_seleccionados[1:])}")
     
-    opciones_confronta = ["(Ninguno)"] + [n for n in nombres_lista_global if n not in jefes_seleccionados]
-    confronta_seleccionado = st.selectbox("📝 Confronta", options=opciones_confronta)
-    confrontas_seleccionados = [confronta_seleccionado] if confronta_seleccionado != "(Ninguno)" else []
+    opciones_confronta_disp = [n for n in nombres_lista_global if n not in jefes_seleccionados]
+    
+    # Selector MÚLTIPLE para Confronta
+    confrontas_seleccionados_raw = st.multiselect(
+        "📝 Confronta (Puedes elegir uno o varios)", 
+        options=opciones_confronta_disp,
+        placeholder="Selecciona uno o varios..."
+    )
+    
+    if confrontas_seleccionados_raw:
+        df_conf_sel = efectivos_global[efectivos_global["Nombre"].isin(confrontas_seleccionados_raw)].copy()
+        df_conf_sel["Orden_Sel"] = [
+            r["Orden"] if r["Categoria"] in ["JEFE DE TURNO", "RESGUARDO FISCAL"] else 100 + confrontas_seleccionados_raw.index(r["Nombre"])
+            for _, r in df_conf_sel.iterrows()
+        ]
+        df_conf_ordenados = df_conf_sel.sort_values(['Cat_Num', 'Orden_Sel'])
+        confrontas_seleccionados = df_conf_ordenados["Nombre"].tolist()
+    else:
+        confrontas_seleccionados = []
     
     st.write("---")
     st.write("🛡️ **Resguardo Fiscal** (Activa los componentes fijos del grupo en rotación)")
@@ -526,7 +539,7 @@ with tab_diario:
                     if st.toggle("Sí", key=f"tog_{row['TIP']}", label_visibility="collapsed"):
                         ops_fijos_seleccionados.append(row)
 
-    # Selección de Refuerzos del Resto de la Plantilla (por orden alfabético)
+    # Selección de Refuerzos
     st.write("➕ **Resto de Plantilla (Refuerzos para el turno)**")
     df_resto_disponible = efectivos_global[
         (efectivos_global['Categoria'] == 'RESTO PLANTILLA') &
@@ -547,7 +560,8 @@ with tab_diario:
     num_ops = len(ops_fijos_seleccionados) + len(ops_refuerzos_seleccionados)
     num_jefes = len(jefes_seleccionados)
     
-    # Selección automática: 2h si hay 3 op + jefe; 2h 20m si hay 5 op; 3h por defecto
+    modo_vigilancia = st.toggle("🚨 MODO VIGILANCIA: Activar puesto provisional (PARRILLA)")
+    
     if num_ops == 3 and num_jefes >= 1:
         indice_defecto = 0
     elif num_ops == 5:
@@ -563,14 +577,28 @@ with tab_diario:
         format_func=lambda x: "2h 20m" if x == 2.33 else f"{x} Horas"
     )
     
-    if intervalo_horas == 2:
-        def_puestos = "PUERTAS, POSTA, ROMA"
-    elif intervalo_horas == 2.33:
-        def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
-    elif intervalo_horas == 3:
-        def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
+    # Lógica de asignación matemática de puestos (Modo normal vs Modo Vigilancia)
+    if modo_vigilancia:
+        # En vigilancia creamos una lista que es exactamente 1 puesto más larga que el nº de slots.
+        # De esta forma, el Nº 1 empieza en índice 0 (PUERTAS) y termina en el penúltimo índice (ROMA).
+        # El Nº 2 termina exactamente un índice después (PARRILLA).
+        if intervalo_horas == 2:
+            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA, PARRILLA"
+        elif intervalo_horas == 2.33:
+            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA, PARRILLA"
+        elif intervalo_horas == 3:
+            def_puestos = "PUERTAS, POSTA, POSTA, ROMA, PARRILLA"
+        else:
+            def_puestos = "PUERTAS, POSTA, ROMA, PARRILLA"
     else:
-        def_puestos = "PUERTAS, POSTA, ROMA"
+        if intervalo_horas == 2:
+            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
+        elif intervalo_horas == 2.33:
+            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
+        elif intervalo_horas == 3:
+            def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
+        else:
+            def_puestos = "PUERTAS, POSTA, ROMA"
         
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
@@ -617,13 +645,27 @@ with tab_diario:
             df_img['Nombre'] = df_img['Nombre'].apply(lambda x: '\n'.join(textwrap.wrap(str(x), width=22)))
 
         num_franjas = len(df.columns) - 4
-        ancho_lienzo = 13.0 if num_franjas >= 5 else 11.5
+        
+        # Ajuste dinámico del lienzo según el número de franjas para que no se apelmace
+        if num_franjas >= 6:
+            ancho_lienzo = 14.5
+        elif num_franjas == 5:
+            ancho_lienzo = 13.0
+        else:
+            ancho_lienzo = 11.5
+            
         alto_lienzo = 0.65 * (len(df) + 1)
         
         fig, ax = plt.subplots(figsize=(ancho_lienzo, alto_lienzo))
         ax.axis('off')
         
-        ancho_col_franja = 0.11 if num_franjas == 5 else 0.10
+        if num_franjas == 5:
+            ancho_col_franja = 0.11
+        elif num_franjas >= 6:
+            ancho_col_franja = 0.09
+        else:
+            ancho_col_franja = 0.10
+            
         col_widths = [0.05, 0.12, 0.26, 0.21] + [ancho_col_franja] * num_franjas
         
         table = ax.table(
@@ -665,7 +707,6 @@ with tab_diario:
             st.write("### 🔢 Asignación de Puestos")
             st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
-            # 1. Rueda rotacional entre los fijos del grupo
             if len(ops_fijos_seleccionados) > 0:
                 df_fijos = pd.DataFrame(ops_fijos_seleccionados).sort_values(by="Orden", ascending=True).reset_index(drop=True)
                 df_fijos["Ultimo_Maximo"] = df_fijos["Nombre"].map(st.session_state.historial).fillna(date(2000, 1, 1))
@@ -707,7 +748,6 @@ with tab_diario:
                 df_fijos = pd.DataFrame()
                 pivote_seleccionado = "ninguno"
 
-            # 2. Añadimos los refuerzos al listado de asignación de números
             if len(ops_refuerzos_seleccionados) > 0:
                 df_ref = pd.DataFrame(ops_refuerzos_seleccionados).sort_values(by="Nombre", ascending=True).reset_index(drop=True)
                 df_ref["Ultimo_Maximo"] = date(2000, 1, 1)
@@ -767,7 +807,6 @@ with tab_diario:
                 boton_generar = st.button("🚀 Confirmar Rotación y Generar", type="primary")
                 
             if boton_generar:
-                # Guardamos en la memoria quién de los fijos del grupo se llevó hoy el número más alto entre los fijos
                 fijos_hoy = numeros_editados[~numeros_editados["Es_Refuerzo"]]
                 if not fijos_hoy.empty:
                     max_num_fijo = fijos_hoy["Nº Asignado"].max()
@@ -783,7 +822,6 @@ with tab_diario:
                 texto = f"{titulo_cuadrante}\n\n"
                 cuadrante_final = []
                 
-                # 1. Jefes de Turno y Jefe Adjunto
                 for idx_j, nombre_jefe in enumerate(jefes_seleccionados):
                     rol_jefe = "JEFE DE TURNO" if idx_j == 0 else "JEFE ADJUNTO"
                     tip_jefe = efectivos_global[efectivos_global["Nombre"] == nombre_jefe].iloc[0]["TIP"]
@@ -792,7 +830,6 @@ with tab_diario:
                     for h in franjas_img: fila_fija[h] = "-"
                     cuadrante_final.append(fila_fija)
                     
-                # 2. Confronta
                 for nombre_conf in confrontas_seleccionados:
                     tip_conf = efectivos_global[efectivos_global["Nombre"] == nombre_conf].iloc[0]["TIP"]
                     texto += f"CONFRONTA: {nombre_conf} ({tip_conf})\n"
@@ -803,7 +840,6 @@ with tab_diario:
                 if jefes_seleccionados or confrontas_seleccionados:
                     texto += "\n"
                 
-                # 3. Tabla para Imagen WhatsApp (ordenada por Nº Asignado: 1, 2, 3...)
                 for _, row in numeros_editados.sort_values("Nº Asignado", ascending=True).iterrows():
                     tip_op = row["TIP"]
                     n_asignado = row['Nº Asignado']
@@ -815,7 +851,6 @@ with tab_diario:
                     
                     cuadrante_final.append(fila_op)
                 
-                # 4. Texto para SIGO / Novedades (fijos por Antigüedad y después refuerzos por orden alfabético)
                 for _, row in numeros_editados.sort_values(["Es_Refuerzo", "Orden", "Nombre"], ascending=[True, True, True]).iterrows():
                     tip_op = row["TIP"]
                     n_asignado = row['Nº Asignado']
