@@ -575,23 +575,27 @@ with tab_diario:
         format_func=lambda x: "2h 20m" if x == 2.33 else f"{x} Horas"
     )
     
-    # Generador dinámico de puestos según el número de operadores seleccionados (Para evitar huecos vacíos)
-    if num_ops > 0:
-        if modo_vigilancia:
-            if num_ops >= 3:
-                num_postas = num_ops - 3
-                def_puestos_list = ["PARRILLA", "PUERTAS"] + (["POSTA"] * num_postas) + ["ROMA"]
-            else:
-                def_puestos_list = ["PARRILLA", "PUERTAS", "ROMA"][:num_ops]
+    # -------------------------------------------------------------
+    # BASE DE PUESTOS MATEMÁTICA (Para que N=1 acabe en ROMA y N=2 en PARRILLA)
+    # -------------------------------------------------------------
+    if modo_vigilancia:
+        if intervalo_horas == 2:
+            def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
+        elif intervalo_horas == 2.33:
+            def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
+        elif intervalo_horas == 3:
+            def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
         else:
-            if num_ops >= 2:
-                num_postas = num_ops - 2
-                def_puestos_list = ["PUERTAS"] + (["POSTA"] * num_postas) + ["ROMA"]
-            else:
-                def_puestos_list = ["PUERTAS", "ROMA"][:num_ops]
-        def_puestos = ", ".join(def_puestos_list)
+            def_puestos = "PUERTAS, PARRILLA, ROMA"
     else:
-        def_puestos = ""
+        if intervalo_horas == 2:
+            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
+        elif intervalo_horas == 2.33:
+            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
+        elif intervalo_horas == 3:
+            def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
+        else:
+            def_puestos = "PUERTAS, POSTA, ROMA"
         
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
@@ -616,8 +620,12 @@ with tab_diario:
         for i in range(slots):
             h_inicio = (start + (i * intervalo)) % 24
             h_fin = (start + ((i + 1) * intervalo)) % 24
-            franjas_img.append(f"{h_inicio:02d}/{h_fin:02d}")
-            franjas_texto.append(f"{h_inicio:02d}:00 h a {h_fin:02d}:00 h")
+            # Formato corto garantizado para la imagen PNG
+            img_str = f"{int(h_inicio):02d}/{int(h_fin):02d}"
+            franjas_img.append(img_str)
+            # Formato largo para texto de novedades
+            txt_str = f"{int(h_inicio):02d}:00 h a {int(h_fin):02d}:00 h"
+            franjas_texto.append(txt_str)
         return franjas_img, franjas_texto
 
     def crear_imagen_tabla(df, titulo):
@@ -685,7 +693,10 @@ with tab_diario:
     if num_ops > 0 or num_jefes > 0 or len(confrontas_seleccionados) > 0:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
-            st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
+            if modo_vigilancia:
+                st.caption("🚨 Rueda Entrelazada de Vigilancia: Cubre todos los puestos en todas las horas (Nº 1 acaba en ROMA, Nº 2 acaba en PARRILLA).")
+            else:
+                st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
             if len(ops_fijos_seleccionados) > 0:
                 df_fijos = pd.DataFrame(ops_fijos_seleccionados).sort_values(by="Orden", ascending=True).reset_index(drop=True)
@@ -822,7 +833,21 @@ with tab_diario:
                     fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
                     
                     for idx, h_img in enumerate(franjas_img):
-                        puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
+                        # LÓGICA DE ROTACIÓN SEGÚN MODO
+                        L = len(lista_puestos)
+                        if L > 0:
+                            if modo_vigilancia:
+                                half_ceil = (L + 1) // 2
+                                n_eff = ((n_asignado - 1) % L) + 1
+                                if n_eff % 2 != 0:
+                                    idx_start = (n_eff - 1) // 2
+                                else:
+                                    idx_start = half_ceil + (n_eff - 2) // 2
+                            else:
+                                idx_start = n_asignado - 1
+                            puesto = lista_puestos[(idx_start + idx) % L]
+                        else:
+                            puesto = ""
                         fila_op[h_img] = puesto
                     
                     cuadrante_final.append(fila_op)
@@ -833,7 +858,20 @@ with tab_diario:
                     
                     texto += f"{row['Nombre']} ({tip_op})\n"
                     for idx, h_txt in enumerate(franjas_texto):
-                        puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
+                        L = len(lista_puestos)
+                        if L > 0:
+                            if modo_vigilancia:
+                                half_ceil = (L + 1) // 2
+                                n_eff = ((n_asignado - 1) % L) + 1
+                                if n_eff % 2 != 0:
+                                    idx_start = (n_eff - 1) // 2
+                                else:
+                                    idx_start = half_ceil + (n_eff - 2) // 2
+                            else:
+                                idx_start = n_asignado - 1
+                            puesto = lista_puestos[(idx_start + idx) % L]
+                        else:
+                            puesto = ""
                         texto += f"{h_txt}: {puesto}\n"
                     texto += "\n"
                 
