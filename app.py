@@ -582,7 +582,7 @@ with tab_diario:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            # Secuencia base adaptada para que Nº 1 empiece en Puertas y acabe en Roma, y Nº 2 acabe en Parrilla según tu imagen
+            # Secuencia base exacta para que con 5 operadores dibuje la tabla de tu última imagen (Nº1 y Nº5 bien, Nº2,3,4 ajustados)
             def_puestos = "PUERTAS, POSTA, PARRILLA, ROMA, POSTA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
@@ -836,8 +836,24 @@ with tab_diario:
                     fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
                     
                     for idx, h_img in enumerate(franjas_img):
-                        puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
-                        fila_op[h_img] = puesto
+                        # LÓGICA DE ROTACIÓN SEGÚN MODO
+                        L = len(lista_puestos)
+                        if L > 0:
+                            if modo_vigilancia and num_ops == 5 and L == 5:
+                                # Mapeo exacto para el patrón personalizado de 5 en modo vigilancia
+                                mapa_vigilancia_5 = {
+                                    1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
+                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    3: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
+                                    4: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
+                                }
+                                fila_op[h_img] = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
+                            else:
+                                puesto = lista_puestos[(n_asignado - 1 + idx) % L]
+                                fila_op[h_img] = puesto
+                        else:
+                            fila_op[h_img] = ""
                     
                     cuadrante_final.append(fila_op)
                 
@@ -847,7 +863,21 @@ with tab_diario:
                     
                     texto += f"{row['Nombre']} ({tip_op})\n"
                     for idx, h_txt in enumerate(franjas_texto):
-                        puesto = lista_puestos[(n_asignado - 1 + idx) % len(lista_puestos)]
+                        L = len(lista_puestos)
+                        if L > 0:
+                            if modo_vigilancia and num_ops == 5 and L == 5:
+                                mapa_vigilancia_5 = {
+                                    1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
+                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    3: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
+                                    4: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
+                                }
+                                puesto = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
+                            else:
+                                puesto = lista_puestos[(n_asignado - 1 + idx) % L]
+                        else:
+                            puesto = ""
                         texto += f"{h_txt}: {puesto}\n"
                     texto += "\n"
                 
