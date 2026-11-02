@@ -576,14 +576,14 @@ with tab_diario:
     )
     
     # -------------------------------------------------------------
-    # SECUENCIAS MAESTRAS EXACTAS SEGÚN IMÁGENES OFICIALES (MODO VIGILANCIA CON 5 COMPONENTES ACTUALIZADO)
+    # SECUENCIAS MAESTRAS EXACTAS SEGÚN IMÁGENES OFICIALES (MODO VIGILANCIA 5 COMPONENTES REAJUSTADO)
     # -------------------------------------------------------------
     if modo_vigilancia:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            # Secuencia ajustada para que Nº 2 acabe en Parrilla y Nº 1 en Roma según tu última imagen de 5 componentes
-            def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
+            # Secuencia base adaptada para que Nº 1 empiece en Puertas y acabe en Roma, y Nº 2 acabe en Parrilla según tu imagen
+            def_puestos = "PUERTAS, POSTA, PARRILLA, ROMA, POSTA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
         elif num_ops == 3:
