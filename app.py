@@ -576,22 +576,20 @@ with tab_diario:
     )
     
     # -------------------------------------------------------------
-    # SECUENCIA MAESTRA ADAPTADA AL NÚMERO DE OPERADORES (SIN HUECOS VACÍOS)
+    # SECUENCIAS MAESTRAS EXACTAS SEGÚN IMÁGENES OFICIALES (MODO VIGILANCIA CON 5 COMPONENTES ACTUALIZADO)
     # -------------------------------------------------------------
     if modo_vigilancia:
         if num_ops == 6:
-            # 6 componentes (Patrón exacto de tu imagen: Puertas, Posta, Parrilla, Posta, Posta, Roma)
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            # 5 componentes (Patrón clásico de 5 adaptado con Parrilla)
+            # Secuencia ajustada para que Nº 2 acabe en Parrilla y Nº 1 en Roma según tu última imagen de 5 componentes
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
-        elif num_ops <= 3:
+        elif num_ops == 3:
             def_puestos = "PUERTAS, PARRILLA, ROMA"
         else:
-            # Para cualquier otro número, construye dinámicamente con Puertas, Parrilla y Roma
-            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * (num_ops - 3)) + ", PARRILLA, ROMA"
+            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 3)) + ", PARRILLA, ROMA"
     else:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
@@ -599,8 +597,10 @@ with tab_diario:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
+        elif num_ops == 3:
+            def_puestos = "PUERTAS, POSTA, ROMA"
         else:
-            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * (num_ops - 2)) + ", ROMA"
+            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 2)) + ", ROMA"
         
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
@@ -697,7 +697,7 @@ with tab_diario:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
             if modo_vigilancia:
-                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada sin huecos vacíos.")
+                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada con puestos de seguridad.")
             else:
                 st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
