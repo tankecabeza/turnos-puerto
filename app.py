@@ -576,14 +576,13 @@ with tab_diario:
     )
     
     # -------------------------------------------------------------
-    # SECUENCIAS MAESTRAS EXACTAS SEGÚN IMÁGENES OFICIALES (MODO VIGILANCIA 5 COMPONENTES REAJUSTADO)
+    # SECUENCIAS MAESTRAS EXACTAS
     # -------------------------------------------------------------
     if modo_vigilancia:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            # Secuencia base exacta para que con 5 operadores dibuje la tabla de tu última imagen (Nº1 y Nº5 bien, Nº2,3,4 ajustados)
-            def_puestos = "PUERTAS, POSTA, PARRILLA, ROMA, POSTA"
+            def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
         elif num_ops == 3:
@@ -594,11 +593,11 @@ with tab_diario:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
-        elif num_ops == 4:
             def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
-        elif num_ops == 3:
+        elif num_ops == 4:
             def_puestos = "PUERTAS, POSTA, ROMA"
+        elif num_ops == 3:
+            def_puestos = "PUERTAS, POSTA, POSTA"
         else:
             def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 2)) + ", ROMA"
         
@@ -836,16 +835,24 @@ with tab_diario:
                     fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
                     
                     for idx, h_img in enumerate(franjas_img):
-                        # LÓGICA DE ROTACIÓN SEGÚN MODO
+                        # LÓGICA DE ROTACIÓN EXACTA SEGÚN TUS ÚLTIMAS INSTRUCCIONES
                         L = len(lista_puestos)
                         if L > 0:
                             if modo_vigilancia and num_ops == 5 and L == 5:
-                                # Mapeo exacto para el patrón personalizado de 5 en modo vigilancia
+                                # Matriz exacta de 5 componentes adaptada a tus finales:
+                                # Nº1: PUERTAS, POSTA, PARRILLA, POSTA, ROMA (Acaba en Roma)
+                                # Nº2: POSTA, PARRILLA, POSTA, ROMA, PUERTAS (Acaba en Puertas -> esperad, Nº2 acaba en Parrilla según tu orden anterior)
+                                # Vamos a usar exactamente los arrays que me has dictado:
+                                # 1: Puertas, Posta, Parrilla, Posta, Roma
+                                # 2: Posta, Roma, Puertas, Posta, Parrilla (Acaba en Parrilla)
+                                # 3: Posta, Parrilla, Posta, Roma, Puertas (Acaba en Puertas)
+                                # 4: Parrilla, Posta, Roma, Puertas, Posta (Empieza en Parrilla, acaba en Posta)
+                                # 5: Roma, Puertas, Posta, Parrilla, Posta (Empieza en Roma, acaba en Posta)
                                 mapa_vigilancia_5 = {
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    3: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
-                                    4: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 fila_op[h_img] = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
@@ -868,9 +875,9 @@ with tab_diario:
                             if modo_vigilancia and num_ops == 5 and L == 5:
                                 mapa_vigilancia_5 = {
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    3: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
-                                    4: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 puesto = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
