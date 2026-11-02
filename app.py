@@ -1,9 +1,3 @@
-¡Perfecto! Analizando las dos nuevas imágenes que me has pasado, ya tengo el puzle matemático al 100%.
- * Con 4 componentes: La secuencia de puestos para el Modo Vigilancia es exactamente la que muestras en la segunda imagen (PUERTAS, PARRILLA, POSTA, ROMA).
- * Con 3 componentes: La secuencia es la de la primera imagen adaptada con Parrilla (PUERTAS, PARRILLA, ROMA).
- * Con 5 y 6 componentes: Usan las secuencias que vimos en las imágenes anteriores.
-He integrado esta matriz de secuencias exactas por número de operadores dentro del código. Ahora, cuando actives el Modo Vigilancia, el sistema asignará la rueda idéntica a tus plantillas oficiales sin que se quede ningún puesto cojo, manteniendo el orden de tus fijos, la selección múltiple de Confrontas y el formato limpio de las horas en la imagen PNG.
-Aquí tienes tu app.py definitivo y libre de espacios invisibles (recuerda usar el botón de Copiar de la esquina superior derecha del bloque de código para pasarlo a GitHub):
 import streamlit as st
 import pandas as pd
 from datetime import date, datetime
@@ -582,23 +576,22 @@ with tab_diario:
     )
     
     # -------------------------------------------------------------
-    # SECUENCIAS MAESTRAS EXACTAS SEGÚN IMÁGENES OFICIALES
+    # SECUENCIA MAESTRA ADAPTADA AL NÚMERO DE OPERADORES (SIN HUECOS VACÍOS)
     # -------------------------------------------------------------
     if modo_vigilancia:
         if num_ops == 6:
-            # 6 componentes (Con Parrilla)
+            # 6 componentes (Patrón exacto de tu imagen: Puertas, Posta, Parrilla, Posta, Posta, Roma)
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            # 5 componentes (Con Parrilla)
+            # 5 componentes (Patrón clásico de 5 adaptado con Parrilla)
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
         elif num_ops == 4:
-            # 4 componentes (Con Parrilla según imagen oficial)
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
-        elif num_ops == 3:
-            # 3 componentes (Con Parrilla / Postas según imagen oficial)
+        elif num_ops <= 3:
             def_puestos = "PUERTAS, PARRILLA, ROMA"
         else:
-            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 3)) + ", PARRILLA, ROMA"
+            # Para cualquier otro número, construye dinámicamente con Puertas, Parrilla y Roma
+            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * (num_ops - 3)) + ", PARRILLA, ROMA"
     else:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
@@ -606,10 +599,8 @@ with tab_diario:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
-        elif num_ops == 3:
-            def_puestos = "PUERTAS, POSTA, ROMA"
         else:
-            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 2)) + ", ROMA"
+            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * (num_ops - 2)) + ", ROMA"
         
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
@@ -706,7 +697,7 @@ with tab_diario:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
             if modo_vigilancia:
-                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada con puestos de seguridad.")
+                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada sin huecos vacíos.")
             else:
                 st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
@@ -888,4 +879,3 @@ with tab_diario:
             
     else:
         st.info("Selecciona componentes arriba para generar el cuadrante.")
-
