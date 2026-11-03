@@ -11,6 +11,7 @@ import json
 import os
 import base64
 import hashlib
+from cryptography.fernet import Fernet, InvalidToken
 
 # ==========================================
 # 1. CONFIGURACIÓN VISUAL
@@ -29,34 +30,73 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. SISTEMA DE CIFRADO (LOPD) Y CONEXIÓN
+# 2. SISTEMA DE CIFRADO (FERNET + SCRYPT)
 # ==========================================
-CLAVE_CIFRADO = "PuertoMalaga2026_SeguridadLOPD_Max_V1"
+# Leemos las claves desde los secretos seguros de Streamlit, NUNCA en el código
+try:
+    FERNET_KEY = st.secrets["FERNET_KEY"]
+    OLD_XOR_KEY = st.secrets.get("OLD_XOR_KEY", "PuertoMalaga2026_SeguridadLOPD_Max_V1")
+    fernet = Fernet(FERNET_KEY)
+except Exception:
+    st.error("🚨 Error de Seguridad: Faltan las claves criptográficas en st.secrets.")
+    st.stop()
 
 def cifrar_datos(data_dict):
+    """Cifra los datos usando criptografía simétrica Fernet."""
     json_bytes = json.dumps(data_dict, ensure_ascii=False).encode('utf-8')
-    clave_bytes = CLAVE_CIFRADO.encode('utf-8')
-    cifrado_bytes = bytearray(
-        b ^ clave_bytes[i % len(clave_bytes)] 
-        for i, b in enumerate(json_bytes)
-    )
-    return base64.b64encode(cifrado_bytes).decode('utf-8')
+    return fernet.encrypt(json_bytes).decode('utf-8')
 
 def descifrar_datos(b64_str):
+    """Descifra con Fernet. Si falla, hace fallback al XOR antiguo para migrar datos heredados."""
     try:
-        cifrado_bytes = base64.b64decode(b64_str)
-        clave_bytes = CLAVE_CIFRADO.encode('utf-8')
-        descifrado_bytes = bytearray(
-            b ^ clave_bytes[i % len(clave_bytes)] 
-            for i, b in enumerate(cifrado_bytes)
-        )
+        # 1. Intentar descifrado seguro Fernet
+        descifrado_bytes = fernet.decrypt(b64_str.encode('utf-8'))
         return json.loads(descifrado_bytes.decode('utf-8'))
-    except Exception:
+    except (InvalidToken, ValueError, TypeError):
+        # 2. Fallback Puente: Descifrado XOR Antiguo (Migración)
         try:
-            json_str = base64.b64decode(b64_str).decode('utf-8')
-            return json.loads(json_str)
+            cifrado_bytes = base64.b64decode(b64_str)
+            clave_bytes = OLD_XOR_KEY.encode('utf-8')
+            descifrado_bytes = bytearray(
+                b ^ clave_bytes[i % len(clave_bytes)] 
+                for i, b in enumerate(cifrado_bytes)
+            )
+            return json.loads(descifrado_bytes.decode('utf-8'))
         except Exception:
-            return None
+            # 3. Fallback: Base64 puro (texto plano antiguo)
+            try:
+                return json.loads(base64.b64decode(b64_str).decode('utf-8'))
+            except Exception:
+                return None
+
+def hash_scrypt(password, salt=None):
+    """Genera un hash scrypt altamente seguro con salteado aleatorio."""
+    if salt is None:
+        salt = os.urandom(16)
+    else:
+        if isinstance(salt, str):
+            salt = bytes.fromhex(salt)
+    # Parámetros recomendados de seguridad
+    key = hashlib.scrypt(password.encode('utf-8'), salt=salt, n=16384, r=8, p=1, maxmem=0)
+    return f"{salt.hex()}:{key.hex()}"
+
+def verificar_password(password, stored_hash):
+    """Verifica la clave. Retorna (Es_Valida, Necesita_Actualizar_A_Scrypt)"""
+    if ":" not in stored_hash:
+        # Es un hash SHA-256 antiguo (Migración)
+        old_sha = hashlib.sha256(password.encode()).hexdigest()
+        if old_sha == stored_hash:
+            return True, True
+        return False, False
+    else:
+        # Es un hash scrypt moderno
+        try:
+            salt_hex, _ = stored_hash.split(":")
+            if hash_scrypt(password, salt_hex) == stored_hash:
+                return True, False
+        except Exception:
+            pass
+    return False, False
 
 MODO_OFFLINE = platform.system() == "Windows"
 
@@ -177,115 +217,22 @@ else:
         st.stop()
 
 # ==========================================
-# 3. CARGA INICIAL DE DATOS EXACTOS
+# 3. CARGA INICIAL (Sin datos personales)
 # ==========================================
-plantilla_oficial = pd.DataFrame([
-    # 1. JEFES DE TURNO HABITUALES
-    {"Categoria": "JEFE DE TURNO", "TIP": "Q21989J", "Nombre": "SARGENTO 1º JUAN CARLOS GÁLVEZ ÁLVAREZ", "Orden": 1},
-    {"Categoria": "JEFE DE TURNO", "TIP": "E57240M", "Nombre": "SARGENTO MARTIN RICO HUTCHISON", "Orden": 2},
-    {"Categoria": "JEFE DE TURNO", "TIP": "X49035H", "Nombre": "CABO 1º DAVID MOSTAZO GARCÍA", "Orden": 3},
-    {"Categoria": "JEFE DE TURNO", "TIP": "B36115Y", "Nombre": "CABO 1º SALVADOR MARTÍN BAENA", "Orden": 4},
-    {"Categoria": "JEFE DE TURNO", "TIP": "Y14399C", "Nombre": "CABO 1º ANSELMO ROMERO MORENO", "Orden": 5},
-    {"Categoria": "JEFE DE TURNO", "TIP": "R37053N", "Nombre": "CABO 1º MIGUEL CARMONA FLORES", "Orden": 6},
-    {"Categoria": "JEFE DE TURNO", "TIP": "P44826Q", "Nombre": "GUARDIA CIVIL 1º MIGUEL ÁNGEL DUARTE SÁNCHEZ", "Orden": 7},
-    {"Categoria": "JEFE DE TURNO", "TIP": "P58735T", "Nombre": "GUARDIA CIVIL MIGUEL MARTÍN DÍAZ", "Orden": 8},
-    
-    # 2. RESGUARDO FISCAL (GRUPO FIJO)
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "W92718I", "Nombre": "ANTONIO MARIANO RODRÍGUEZ MARTÍNEZ", "Orden": 4},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "U09338T", "Nombre": "DAVID JOAQUÍN LÓPEZ ESPINAL", "Orden": 5},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "Z19006G", "Nombre": "ALBERTO CONSTAN CRESPO", "Orden": 6},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "V49093U", "Nombre": "DIEGO MANUEL TORRES KITTS", "Orden": 7},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
-    {"Categoria": "RESGUARDO FISCAL", "TIP": "X10503B", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9},
-
-    # 3. RESTO DE PLANTILLA DE LA UNIDAD
-    {"Categoria": "RESTO PLANTILLA", "TIP": "R49856I", "Nombre": "AHMED RACHID, ZOHAIR", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "I51444D", "Nombre": "ALBA RAMAJO, ANDREA (TENIENTE)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "L26693P", "Nombre": "ALBAÑIL ALBAÑIL, ALEJANDRO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "W63047Y", "Nombre": "BERMEJO MORENO, JAVIER", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "H97426N", "Nombre": "BLANCO RODRÍGUEZ, ANTONIO GERMÁN", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "J14296K", "Nombre": "BRICEÑO ESCOBAR, ANTONIO (SARGENTO 1º)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "K18646N", "Nombre": "CANO RODRÍGUEZ, JULIÁN", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "V89107U", "Nombre": "CASTAÑEDA JIMÉNEZ, JAVIER", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "M50512C", "Nombre": "CERDÁN POSTIGO, FRANCISCO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "H19872X", "Nombre": "CUETO PADILLA, JOSÉ LUIS (GUARDIA 1º)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "Y32879A", "Nombre": "FERNÁNDEZ JUSTICIA, PABLO (G.A.P.)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "I12192V", "Nombre": "FERNÁNDEZ TOMÉ, GONZALO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "G45948Z", "Nombre": "GAITÁN LÓPEZ, JOSÉ ANTONIO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "R54704P", "Nombre": "GÁLVEZ SÁNCHEZ RANDO, JOSÉ ANTONIO (CABO 1º)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "W29740H", "Nombre": "GÁMEZ ÁVILA, MIGUEL ÁNGEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "Y74264M", "Nombre": "GARCÍA NAVIA, GERMÁN (BRIGADA)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "B69631D", "Nombre": "GARCÍA ORTEGA, FRANCISCO MANUEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "P90329E", "Nombre": "GIL GARCÍA, JUAN ANTONIO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "H44555F", "Nombre": "GIL ROMERO, JOSÉ ANTONIO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "B29544C", "Nombre": "GÓMEZ JURADO, ANTONIO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "P30694P", "Nombre": "GONZÁLEZ DOMÍNGUEZ, FERNANDO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "L98185Y", "Nombre": "GONZÁLEZ GONZÁLEZ, MARÍA NATALIA", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "T17416E", "Nombre": "GONZÁLEZ SEVILLA, ANA ISABEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "N86843Y", "Nombre": "GUTIÉRREZ ANAYA, JOSÉ MANUEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "I52251V", "Nombre": "HERNÁNDEZ GONZÁLEZ, JAVIER", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "I58896H", "Nombre": "LARA PALOMO, RAFAEL (SARGENTO 1º)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "H00165H", "Nombre": "LIÑÁN PÁEZ, JOSÉ ANTONIO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "M56747G", "Nombre": "LÓPEZ CARRILLO, VICENTE", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "V22287Y", "Nombre": "LÓPEZ PERALES, RAÚL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "M66973T", "Nombre": "LÓPEZ RUEDA, JOSÉ RAMÓN", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "J36746N", "Nombre": "LOZANO PEÑAS, JOSÉ", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "A69961K", "Nombre": "LUQUE MARÍN, FRANCISCO (SUBTENIENTE)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "H50953S", "Nombre": "MARTÍN MARTÍN, PEDRO ALFONSO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "N08103C", "Nombre": "MARTÍNEZ BOUAZZAOUI, FOUAD", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "N55757Y", "Nombre": "MILLÁN HEDRERA, RAFAEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "Z74474D", "Nombre": "MOHAND AISSA, MIMUN", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "E32722J", "Nombre": "OLMO VALLE, DANIEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "B14732T", "Nombre": "ORTEGA MONTIEL, DAMIÁN", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "M64419Z", "Nombre": "PALMA MARTÍN, FANNY", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "S54697I", "Nombre": "PASCUAL GARCÍA, RAFAEL ANTONIO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "T30946G", "Nombre": "PEREIRA JIMÉNEZ, JOSÉ LUIS", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "K86275E", "Nombre": "PÉREZ MOSTAZO, MIGUEL (CABO 1º)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "L29418N", "Nombre": "RAMÍREZ GONZÁLEZ, FRANCISCO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "E05615U", "Nombre": "ROLDÁN GARCÍA, MANUEL JESÚS", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "R15523R", "Nombre": "ROSA VERA, MARÍA FLOR", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "Q49522E", "Nombre": "RUBIO NÚÑEZ, MIGUEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "W20433X", "Nombre": "RUIZ MORENO, FRANCISCO JAVIER", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "J22270M", "Nombre": "RUIZ RUIZ, DAVID", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "C61529C", "Nombre": "SÁNCHEZ JUÁREZ, NORBERTO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "G91609K", "Nombre": "SÁNCHEZ MARTÍN, PEDRO MANUEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "K09011V", "Nombre": "SÁNCHEZ MEDINA, JOSÉ ALBERTO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "P61552X", "Nombre": "SÁNCHEZ REINA, JESÚS MARÍA", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "U49148U", "Nombre": "SANTILLANA BRUNET, ROCÍO (G.A.P.)", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "I72545K", "Nombre": "SANTOS FONTALVA, JOSÉ ANTONIO", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "Y91516U", "Nombre": "SANTOS FONTALVA, LUCAS", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "D71103L", "Nombre": "SUÁREZ SILVENTE, JOSÉ MARÍA", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "C82404J", "Nombre": "TIRADO ROMERO, DANIEL", "Orden": 0},
-    {"Categoria": "RESTO PLANTILLA", "TIP": "A22691J", "Nombre": "ZAYAS RUIZ, FRANCISCO JOSÉ", "Orden": 0}
-])
-
 if 'efectivos' not in st.session_state:
     plantilla_nube = cargar_plantilla()
     if plantilla_nube is not None and not plantilla_nube.empty:
-        cambios_auto = False
-        if "XXXXXXXX" in plantilla_nube["TIP"].values:
-            plantilla_nube.loc[plantilla_nube["Nombre"].str.contains("JUÁREZ VERDUGO", na=False), "TIP"] = "X10503B"
-            cambios_auto = True
-        if "RESTO PLANTILLA" not in plantilla_nube["Categoria"].values:
-            df_resto_oficial = plantilla_oficial[plantilla_oficial["Categoria"] == "RESTO PLANTILLA"]
-            plantilla_nube = pd.concat([plantilla_nube, df_resto_oficial], ignore_index=True)
-            cambios_auto = True
-        if cambios_auto:
-            guardar_plantilla(plantilla_nube)
         st.session_state.efectivos = plantilla_nube
     else:
-        guardar_plantilla(plantilla_oficial)
-        st.session_state.efectivos = plantilla_oficial
+        # Si la base de datos estuviera 100% vacía, inicializa estructura vacía
+        st.session_state.efectivos = pd.DataFrame(columns=["Categoria", "TIP", "Nombre", "Orden"])
         
 if 'historial' not in st.session_state:
     memoria_guardada = cargar_memoria()
-    if not memoria_guardada:
+    if not memoria_guardada and not st.session_state.efectivos.empty:
         memoria_guardada = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
         guardar_memoria(memoria_guardada)
-    st.session_state.historial = memoria_guardada
+    st.session_state.historial = memoria_guardada if memoria_guardada else {}
     
 if 'credenciales' not in st.session_state:
     st.session_state.credenciales = cargar_credenciales()
@@ -309,14 +256,9 @@ if not st.session_state.autenticado:
     st.markdown("""
         <div style="text-align: center; margin-top: 50px;">
             <h2>🛡️ ACCESO RESTRINGIDO</h2>
-            <p style="color: gray;">Sistema de Gestión de Servicios</p>
+            <p style="color: gray;">Sistema Seguro de Gestión de Servicios</p>
         </div>
     """, unsafe_allow_html=True)
-    
-    if MODO_OFFLINE:
-        st.caption("🟢 **MODO PENDRIVE ACTIVADO** (Cifrado Local)")
-    else:
-        st.caption("☁️ **MODO NUBE ACTIVADO** (Conexión Firebase Segura)")
     
     with st.form("login_form"):
         usuario_input = st.text_input("👤 Usuario (Tu número de TIP):", placeholder="Ej: F10173Y").upper().strip()
@@ -324,52 +266,57 @@ if not st.session_state.autenticado:
         submit_btn = st.form_submit_button("Desbloquear Sistema", type="primary")
         
         if submit_btn:
-            # LÓGICA DE ACCESO RESTRINGIDO A LOS 9 COMPONENTES DE RESGUARDO FISCAL (+ ADMIN opcional)
-            df_autorizados = st.session_state.efectivos[
-                st.session_state.efectivos['Categoria'] == 'RESGUARDO FISCAL'
-            ]
-            tips_validos = [
-                tip.upper() for tip in df_autorizados['TIP'].tolist()
-                if tip.upper() not in ["XX", "", "XXXXXXXX"]
-            ]
+            admin_user = st.secrets.get("ADMIN_USER", "ADMIN")
+            admin_pass = st.secrets.get("ADMIN_PASS", "Puerto2026*")
             
-            if usuario_input == "ADMIN" and pwd_input == "Puerto2026*":
+            if usuario_input == admin_user and pwd_input == admin_pass:
                 st.session_state.autenticado = True
                 st.session_state.usuario_actual = "ADMIN"
                 st.session_state.forzar_cambio_clave = False
                 st.rerun()
                 
-            elif usuario_input in tips_validos:
-                pwd_hash = hashlib.sha256(pwd_input.encode()).hexdigest()
-                hash_por_defecto = hashlib.sha256("Puerto2026*".encode()).hexdigest()
-                creds = st.session_state.credenciales
+            elif not st.session_state.efectivos.empty:
+                df_autorizados = st.session_state.efectivos[
+                    st.session_state.efectivos['Categoria'].isin(['JEFE DE TURNO', 'RESGUARDO FISCAL'])
+                ]
+                tips_validos = [tip.upper() for tip in df_autorizados['TIP'].tolist() if tip.upper() not in ["XX", "", "XXXXXXXX"]]
                 
-                if usuario_input in creds:
-                    if pwd_hash == creds[usuario_input]:
-                        st.session_state.autenticado = True
-                        st.session_state.usuario_actual = usuario_input
-                        # Si mágicamente su contraseña guardada sigue siendo la de por defecto, forzar el cambio
-                        if creds[usuario_input] == hash_por_defecto:
-                            st.session_state.forzar_cambio_clave = True
+                if usuario_input in tips_validos:
+                    creds = st.session_state.credenciales
+                    hash_por_defecto_sha = hashlib.sha256(admin_pass.encode()).hexdigest()
+                    
+                    if usuario_input in creds:
+                        is_valid, needs_upgrade = verificar_password(pwd_input, creds[usuario_input])
+                        
+                        if is_valid:
+                            # Forzar cambio si aún usa la por defecto
+                            if creds[usuario_input] == hash_por_defecto_sha or pwd_input == admin_pass:
+                                st.session_state.forzar_cambio_clave = True
+                            elif needs_upgrade:
+                                # Migración silenciosa a Scrypt en segundo plano
+                                creds[usuario_input] = hash_scrypt(pwd_input)
+                                guardar_credenciales(creds)
+                                st.session_state.forzar_cambio_clave = False
+                            else:
+                                st.session_state.forzar_cambio_clave = False
+                                
+                            st.session_state.autenticado = True
+                            st.session_state.usuario_actual = usuario_input
+                            st.rerun()
                         else:
-                            st.session_state.forzar_cambio_clave = False
-                        st.rerun()
+                            st.error("❌ Contraseña incorrecta.")
                     else:
-                        st.error("❌ Contraseña incorrecta.")
+                        # Primer acceso (comprueba contra el SHA256 por defecto antiguo)
+                        if hashlib.sha256(pwd_input.encode()).hexdigest() == hash_por_defecto_sha:
+                            st.session_state.autenticado = True
+                            st.session_state.usuario_actual = usuario_input
+                            st.session_state.forzar_cambio_clave = True
+                            st.rerun()
+                        else:
+                            st.error("❌ Primer acceso: Utiliza la contraseña inicial de la unidad.")
                 else:
-                    # Primer acceso para el usuario
-                    if pwd_hash == hash_por_defecto:
-                        st.session_state.autenticado = True
-                        st.session_state.usuario_actual = usuario_input
-                        st.session_state.forzar_cambio_clave = True # OBLIGAMOS A CAMBIARLA AL ENTRAR
-                        st.rerun()
-                    else:
-                        st.error("❌ Primer acceso: Utiliza la contraseña inicial por defecto (Puerto2026*).")
-            else:
-                st.error("❌ No tienes permisos de acceso. Solo personal autorizado del Grupo Fijo.")
-    
+                    st.error("❌ No tienes permisos de acceso.")
     st.stop()
-
 
 # ==========================================
 # PANTALLA FORZOSA DE CAMBIO DE CONTRASEÑA
@@ -382,18 +329,18 @@ if st.session_state.forzar_cambio_clave:
         btn_cambiar_force = st.form_submit_button("Actualizar y Entrar", type="primary")
         
         if btn_cambiar_force:
+            admin_pass = st.secrets.get("ADMIN_PASS", "Puerto2026*")
             if len(new_pass_force) < 6:
                 st.error("❌ La contraseña debe tener al menos 6 caracteres.")
             elif new_pass_force != new_pass2_force:
                 st.error("❌ Las contraseñas no coinciden.")
-            elif new_pass_force == "Puerto2026*":
+            elif new_pass_force == admin_pass:
                 st.error("❌ No puedes volver a usar la contraseña por defecto.")
             else:
-                new_hash_force = hashlib.sha256(new_pass_force.encode()).hexdigest()
-                st.session_state.credenciales[st.session_state.usuario_actual] = new_hash_force
+                st.session_state.credenciales[st.session_state.usuario_actual] = hash_scrypt(new_pass_force)
                 guardar_credenciales(st.session_state.credenciales)
                 st.session_state.forzar_cambio_clave = False
-                st.success("✅ Contraseña actualizada correctamente.")
+                st.success("✅ Contraseña actualizada y cifrada correctamente.")
                 st.rerun()
     st.stop()
 
@@ -417,10 +364,9 @@ with st.sidebar:
                 elif new_pass != new_pass2:
                     st.error("Las contraseñas no coinciden.")
                 else:
-                    new_hash = hashlib.sha256(new_pass.encode()).hexdigest()
-                    st.session_state.credenciales[st.session_state.usuario_actual] = new_hash
+                    st.session_state.credenciales[st.session_state.usuario_actual] = hash_scrypt(new_pass)
                     guardar_credenciales(st.session_state.credenciales)
-                    st.success("✅ Contraseña actualizada.")
+                    st.success("✅ Contraseña actualizada (Cifrado Avanzado).")
     
     st.write("---")
     if st.button("🚪 Cerrar Sesión"):
@@ -451,7 +397,7 @@ with tab_plantilla:
             col_o.caption("El resto de la plantilla se ordena alfabéticamente (sin nº de antigüedad).")
             nuevo_orden = 0
         else:
-            max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max()
+            max_orden_actual = df_plantilla[df_plantilla['Categoria'] == nueva_cat]['Orden'].max() if not df_plantilla.empty else 0
             siguiente_orden = int(max_orden_actual + 1) if pd.notna(max_orden_actual) else 1
             nuevo_orden = col_o.number_input("Nº de Antigüedad", min_value=1, value=siguiente_orden)
         
@@ -473,6 +419,8 @@ with tab_plantilla:
 
     def renderizar_tarjetas(df_sub, titulo, mostrar_orden=True):
         st.markdown(f"#### {titulo}")
+        if df_sub.empty: return
+        
         if mostrar_orden:
             df_sub = df_sub.sort_values("Orden").reset_index(drop=True)
         else:
@@ -502,10 +450,11 @@ with tab_plantilla:
                         "Orden": int(e_orden)
                     })
 
-    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno", mostrar_orden=True)
-    renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)", mostrar_orden=True)
-    with st.expander("📋 Ver / Editar Resto de Plantilla de la Unidad (Orden Alfabético)", expanded=False):
-        renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESTO PLANTILLA'], "👥 Resto de Plantilla", mostrar_orden=False)
+    if not df_plantilla.empty:
+        renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'JEFE DE TURNO'], "⭐ Jefes de Turno", mostrar_orden=True)
+        renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESGUARDO FISCAL'], "🛡️ Turno Fijo Guardia (Resguardo Fiscal)", mostrar_orden=True)
+        with st.expander("📋 Ver / Editar Resto de Plantilla de la Unidad (Orden Alfabético)", expanded=False):
+            renderizar_tarjetas(df_plantilla[df_plantilla['Categoria'] == 'RESTO PLANTILLA'], "👥 Resto de Plantilla", mostrar_orden=False)
 
     if st.button("💾 GUARDAR CAMBIOS EN LA BASE DE DATOS", type="primary"):
         nueva_plantilla = pd.DataFrame(editados)
@@ -517,24 +466,12 @@ with tab_plantilla:
                 if row["Nombre"] not in st.session_state.historial:
                     st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
             guardar_memoria(st.session_state.historial)
-            st.success("✅ Plantilla actualizada permanentemente en la Base de Datos.")
+            st.success("✅ Plantilla actualizada permanentemente en la Base de Datos con Fernet.")
             st.rerun()
 
     st.write("---")
     st.write("### 🛠️ Opciones Avanzadas de Reseteo")
     with st.expander("⚠️ Zona de Peligro (Cuidado)"):
-        st.warning("Estos botones borrarán tus configuraciones actuales.")
-        
-        if st.button("🔄 Volver a la plantilla original de fábrica (Cargar toda la unidad y TIP de Iván)"):
-            guardar_plantilla(plantilla_oficial)
-            st.session_state.efectivos = plantilla_oficial
-            for _, row in plantilla_oficial.iterrows():
-                if row["Nombre"] not in st.session_state.historial:
-                    st.session_state.historial[row["Nombre"]] = date(2000, 1, 1)
-            guardar_memoria(st.session_state.historial)
-            st.success("✅ Plantilla reseteada y actualizada con toda la unidad.")
-            st.rerun()
-            
         if st.button("🗑️ Resetear historial de rotaciones (Antigüedad pura)", key="reset_plantilla"):
             nuevo_historial = {row["Nombre"]: date(2000, 1, 1) for _, row in st.session_state.efectivos.iterrows()}
             guardar_memoria(nuevo_historial)
@@ -546,6 +483,10 @@ with tab_plantilla:
 # PESTAÑA 1: USO DIARIO
 # ------------------------------------------
 with tab_diario:
+    if st.session_state.efectivos.empty:
+        st.warning("⚠️ No hay efectivos en la base de datos. Ve a la pestaña 'Editar Plantilla' para añadirlos.")
+        st.stop()
+        
     col1, col2 = st.columns(2)
     fecha_servicio = col1.date_input("📅 Fecha", value=date.today())
     tipo_turno = col2.radio("⏱️ Turno", ["Mañana", "Noche"], horizontal=True)
@@ -657,9 +598,6 @@ with tab_diario:
         format_func=lambda x: "2h 20m" if x == 2.33 else f"{x} Horas"
     )
     
-    # -------------------------------------------------------------
-    # SECUENCIAS MAESTRAS EXACTAS 
-    # -------------------------------------------------------------
     if modo_vigilancia:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
@@ -778,7 +716,7 @@ with tab_diario:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
             if modo_vigilancia:
-                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada con puestos de seguridad.")
+                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada.")
             else:
                 st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
@@ -920,12 +858,11 @@ with tab_diario:
                         L = len(lista_puestos)
                         if L > 0:
                             if modo_vigilancia and num_ops == 5 and L == 5:
-                                # Matriz exacta de vigilancia dictada
                                 mapa_vigilancia_5 = {
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    3: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
+                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 fila_op[h_img] = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
@@ -948,9 +885,9 @@ with tab_diario:
                             if modo_vigilancia and num_ops == 5 and L == 5:
                                 mapa_vigilancia_5 = {
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    3: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
+                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 puesto = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
