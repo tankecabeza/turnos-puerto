@@ -29,8 +29,38 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. SISTEMA HÍBRIDO (NUBE / PENDRIVE LOCAL)
+# 2. SISTEMA DE CIFRADO (LOPD) Y CONEXIÓN
 # ==========================================
+CLAVE_CIFRADO = "PuertoMalaga2026_SeguridadLOPD_Max_V1"
+
+def cifrar_datos(data_dict):
+    """Convierte cualquier diccionario en un bloque cifrado ilegible para la base de datos y archivos locales."""
+    json_bytes = json.dumps(data_dict, ensure_ascii=False).encode('utf-8')
+    clave_bytes = CLAVE_CIFRADO.encode('utf-8')
+    cifrado_bytes = bytearray(
+        b ^ clave_bytes[i % len(clave_bytes)] 
+        for i, b in enumerate(json_bytes)
+    )
+    return base64.b64encode(cifrado_bytes).decode('utf-8')
+
+def descifrar_datos(b64_str):
+    """Descifra los bloques ilegibles. Incluye puente de compatibilidad para leer los antiguos sin cifrar."""
+    try:
+        cifrado_bytes = base64.b64decode(b64_str)
+        clave_bytes = CLAVE_CIFRADO.encode('utf-8')
+        descifrado_bytes = bytearray(
+            b ^ clave_bytes[i % len(clave_bytes)] 
+            for i, b in enumerate(cifrado_bytes)
+        )
+        return json.loads(descifrado_bytes.decode('utf-8'))
+    except Exception:
+        # PUENTE DE TRANSICIÓN: Si falla el descifrado, asume que es un archivo antiguo en texto plano (solo base64)
+        try:
+            json_str = base64.b64decode(b64_str).decode('utf-8')
+            return json.loads(json_str)
+        except Exception:
+            return None
+
 MODO_OFFLINE = platform.system() == "Windows"
 
 if MODO_OFFLINE:
@@ -38,51 +68,45 @@ if MODO_OFFLINE:
     PLANTILLA_FILE = "plantilla_local.bin"
     CRED_FILE = "credenciales_local.bin"
 
-    def codificar_datos(data):
-        json_str = json.dumps(data, ensure_ascii=False)
-        return base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
-
-    def decodificar_datos(b64_str):
-        json_str = base64.b64decode(b64_str).decode('utf-8')
-        return json.loads(json_str)
-
     def cargar_memoria():
         if os.path.exists(MEMORIA_FILE):
             try:
                 with open(MEMORIA_FILE, "r", encoding="utf-8") as f:
-                    data = decodificar_datos(f.read())
-                    return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in data.items()}
+                    data = descifrar_datos(f.read())
+                    if data: return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in data.items()}
             except: return {}
         return {}
 
     def guardar_memoria(data):
         with open(MEMORIA_FILE, "w", encoding="utf-8") as f:
             diccionario_fechas = {k: v.strftime("%Y-%m-%d") for k, v in data.items()}
-            f.write(codificar_datos(diccionario_fechas))
+            f.write(cifrar_datos(diccionario_fechas))
 
     def cargar_plantilla():
         if os.path.exists(PLANTILLA_FILE):
             try:
                 with open(PLANTILLA_FILE, "r", encoding="utf-8") as f:
-                    return pd.DataFrame(decodificar_datos(f.read()))
+                    data = descifrar_datos(f.read())
+                    if data: return pd.DataFrame(data)
             except: return None
         return None
 
     def guardar_plantilla(df):
         with open(PLANTILLA_FILE, "w", encoding="utf-8") as f:
-            f.write(codificar_datos(df.to_dict('records')))
+            f.write(cifrar_datos(df.to_dict('records')))
             
     def cargar_credenciales():
         if os.path.exists(CRED_FILE):
             try:
                 with open(CRED_FILE, "r", encoding="utf-8") as f:
-                    return decodificar_datos(f.read())
+                    data = descifrar_datos(f.read())
+                    if data: return data
             except: return {}
         return {}
 
     def guardar_credenciales(data):
         with open(CRED_FILE, "w", encoding="utf-8") as f:
-            f.write(codificar_datos(data))
+            f.write(cifrar_datos(data))
 
 else:
     @st.cache_resource
@@ -103,30 +127,53 @@ else:
         def cargar_memoria():
             doc = DOC_MEMORIA.get()
             if doc.exists:
-                return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in doc.to_dict().items()}
+                dic = doc.to_dict()
+                if 'datos_seguros' in dic:
+                    data = descifrar_datos(dic['datos_seguros'])
+                    if data:
+                        return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in data.items()}
+                else:
+                    return {k: datetime.strptime(v, "%Y-%m-%d").date() for k, v in dic.items() if k != 'datos_seguros'}
             return {}
 
         def guardar_memoria(data):
-            DOC_MEMORIA.set({k: v.strftime("%Y-%m-%d") for k, v in data.items()})
+            diccionario_fechas = {k: v.strftime("%Y-%m-%d") for k, v in data.items()}
+            DOC_MEMORIA.set({'datos_seguros': cifrar_datos(diccionario_fechas)})
 
         def cargar_plantilla():
             doc = DOC_PLANTILLA.get()
             if doc.exists:
-                df = pd.DataFrame(doc.to_dict()['efectivos'])
-                if 'Categoria' not in df.columns:
-                    df['Categoria'] = 'RESGUARDO FISCAL'
-                return df
+                dic = doc.to_dict()
+                if 'datos_seguros' in dic:
+                    data = descifrar_datos(dic['datos_seguros'])
+                    if data:
+                        df = pd.DataFrame(data)
+                        if 'Categoria' not in df.columns:
+                            df['Categoria'] = 'RESGUARDO FISCAL'
+                        return df
+                elif 'efectivos' in dic:
+                    df = pd.DataFrame(dic['efectivos'])
+                    if 'Categoria' not in df.columns:
+                        df['Categoria'] = 'RESGUARDO FISCAL'
+                    return df
             return None
 
         def guardar_plantilla(df):
-            DOC_PLANTILLA.set({'efectivos': df.to_dict('records')})
+            DOC_PLANTILLA.set({'datos_seguros': cifrar_datos(df.to_dict('records'))})
             
         def cargar_credenciales():
             doc = DOC_CREDENCIALES.get()
-            return doc.to_dict() if doc.exists else {}
+            if doc.exists:
+                dic = doc.to_dict()
+                if 'datos_seguros' in dic:
+                    data = descifrar_datos(dic['datos_seguros'])
+                    if data: return data
+                else:
+                    return {k: v for k, v in dic.items() if k != 'datos_seguros'}
+            return {}
 
         def guardar_credenciales(data):
-            DOC_CREDENCIALES.set(data)
+            DOC_CREDENCIALES.set({'datos_seguros': cifrar_datos(data)})
             
     except Exception as e:
         st.error(f"❌ Error de conexión a la nube: {e}")
@@ -136,7 +183,6 @@ else:
 # 3. CARGA INICIAL DE DATOS EXACTOS
 # ==========================================
 plantilla_oficial = pd.DataFrame([
-    # 1. JEFES DE TURNO HABITUALES
     {"Categoria": "JEFE DE TURNO", "TIP": "Q21989J", "Nombre": "SARGENTO 1º JUAN CARLOS GÁLVEZ ÁLVAREZ", "Orden": 1},
     {"Categoria": "JEFE DE TURNO", "TIP": "E57240M", "Nombre": "SARGENTO MARTIN RICO HUTCHISON", "Orden": 2},
     {"Categoria": "JEFE DE TURNO", "TIP": "X49035H", "Nombre": "CABO 1º DAVID MOSTAZO GARCÍA", "Orden": 3},
@@ -146,7 +192,6 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "JEFE DE TURNO", "TIP": "P44826Q", "Nombre": "GUARDIA CIVIL 1º MIGUEL ÁNGEL DUARTE SÁNCHEZ", "Orden": 7},
     {"Categoria": "JEFE DE TURNO", "TIP": "P58735T", "Nombre": "GUARDIA CIVIL MIGUEL MARTÍN DÍAZ", "Orden": 8},
     
-    # 2. RESGUARDO FISCAL (GRUPO FIJO)
     {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
@@ -157,7 +202,6 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "X10503B", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9},
 
-    # 3. RESTO DE PLANTILLA DE LA UNIDAD (ORDEN ALFABÉTICO POR APELLIDOS)
     {"Categoria": "RESTO PLANTILLA", "TIP": "R49856I", "Nombre": "AHMED RACHID, ZOHAIR", "Orden": 0},
     {"Categoria": "RESTO PLANTILLA", "TIP": "I51444D", "Nombre": "ALBA RAMAJO, ANDREA (TENIENTE)", "Orden": 0},
     {"Categoria": "RESTO PLANTILLA", "TIP": "L26693P", "Nombre": "ALBAÑIL ALBAÑIL, ALEJANDRO", "Orden": 0},
@@ -270,7 +314,7 @@ if not st.session_state.autenticado:
     if MODO_OFFLINE:
         st.caption("🟢 **MODO PENDRIVE ACTIVADO** (Cifrado Local)")
     else:
-        st.caption("☁️ **MODO NUBE ACTIVADO** (Conexión Firebase)")
+        st.caption("☁️ **MODO NUBE ACTIVADO** (Conexión Firebase Segura)")
     
     with st.form("login_form"):
         usuario_input = st.text_input("👤 Usuario (Tu número de TIP):", placeholder="Ej: F10173Y").upper().strip()
@@ -576,13 +620,13 @@ with tab_diario:
     )
     
     # -------------------------------------------------------------
-    # SECUENCIAS MAESTRAS EXACTAS
+    # SECUENCIAS MAESTRAS EXACTAS 
     # -------------------------------------------------------------
     if modo_vigilancia:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
+            def_puestos = "PUERTAS, POSTA, PARRILLA, ROMA, POSTA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
         elif num_ops == 3:
@@ -593,11 +637,11 @@ with tab_diario:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
+            def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
         elif num_ops == 4:
-            def_puestos = "PUERTAS, POSTA, ROMA"
+            def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
         elif num_ops == 3:
-            def_puestos = "PUERTAS, POSTA, POSTA"
+            def_puestos = "PUERTAS, POSTA, ROMA"
         else:
             def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 2)) + ", ROMA"
         
@@ -696,7 +740,7 @@ with tab_diario:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
             if modo_vigilancia:
-                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada con puestos de seguridad.")
+                st.caption("🚨 Modo Vigilancia activo: Matriz cruzada de seguridad implementada.")
             else:
                 st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
@@ -835,24 +879,15 @@ with tab_diario:
                     fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
                     
                     for idx, h_img in enumerate(franjas_img):
-                        # LÓGICA DE ROTACIÓN EXACTA SEGÚN TUS ÚLTIMAS INSTRUCCIONES
+                        # MATRIZ EXACTA SEGÚN TUS ÚLTIMAS INSTRUCCIONES
                         L = len(lista_puestos)
                         if L > 0:
                             if modo_vigilancia and num_ops == 5 and L == 5:
-                                # Matriz exacta de 5 componentes adaptada a tus finales:
-                                # Nº1: PUERTAS, POSTA, PARRILLA, POSTA, ROMA (Acaba en Roma)
-                                # Nº2: POSTA, PARRILLA, POSTA, ROMA, PUERTAS (Acaba en Puertas -> esperad, Nº2 acaba en Parrilla según tu orden anterior)
-                                # Vamos a usar exactamente los arrays que me has dictado:
-                                # 1: Puertas, Posta, Parrilla, Posta, Roma
-                                # 2: Posta, Roma, Puertas, Posta, Parrilla (Acaba en Parrilla)
-                                # 3: Posta, Parrilla, Posta, Roma, Puertas (Acaba en Puertas)
-                                # 4: Parrilla, Posta, Roma, Puertas, Posta (Empieza en Parrilla, acaba en Posta)
-                                # 5: Roma, Puertas, Posta, Parrilla, Posta (Empieza en Roma, acaba en Posta)
                                 mapa_vigilancia_5 = {
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
                                     2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
                                     3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 fila_op[h_img] = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
@@ -877,7 +912,7 @@ with tab_diario:
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
                                     2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
                                     3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 puesto = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
