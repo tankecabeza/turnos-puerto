@@ -34,7 +34,6 @@ st.markdown("""
 CLAVE_CIFRADO = "PuertoMalaga2026_SeguridadLOPD_Max_V1"
 
 def cifrar_datos(data_dict):
-    """Convierte cualquier diccionario en un bloque cifrado ilegible para la base de datos y archivos locales."""
     json_bytes = json.dumps(data_dict, ensure_ascii=False).encode('utf-8')
     clave_bytes = CLAVE_CIFRADO.encode('utf-8')
     cifrado_bytes = bytearray(
@@ -44,7 +43,6 @@ def cifrar_datos(data_dict):
     return base64.b64encode(cifrado_bytes).decode('utf-8')
 
 def descifrar_datos(b64_str):
-    """Descifra los bloques ilegibles. Incluye puente de compatibilidad para leer los antiguos sin cifrar."""
     try:
         cifrado_bytes = base64.b64decode(b64_str)
         clave_bytes = CLAVE_CIFRADO.encode('utf-8')
@@ -54,7 +52,6 @@ def descifrar_datos(b64_str):
         )
         return json.loads(descifrado_bytes.decode('utf-8'))
     except Exception:
-        # PUENTE DE TRANSICIÓN: Si falla el descifrado, asume que es un archivo antiguo en texto plano (solo base64)
         try:
             json_str = base64.b64decode(b64_str).decode('utf-8')
             return json.loads(json_str)
@@ -183,6 +180,7 @@ else:
 # 3. CARGA INICIAL DE DATOS EXACTOS
 # ==========================================
 plantilla_oficial = pd.DataFrame([
+    # 1. JEFES DE TURNO HABITUALES
     {"Categoria": "JEFE DE TURNO", "TIP": "Q21989J", "Nombre": "SARGENTO 1º JUAN CARLOS GÁLVEZ ÁLVAREZ", "Orden": 1},
     {"Categoria": "JEFE DE TURNO", "TIP": "E57240M", "Nombre": "SARGENTO MARTIN RICO HUTCHISON", "Orden": 2},
     {"Categoria": "JEFE DE TURNO", "TIP": "X49035H", "Nombre": "CABO 1º DAVID MOSTAZO GARCÍA", "Orden": 3},
@@ -192,6 +190,7 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "JEFE DE TURNO", "TIP": "P44826Q", "Nombre": "GUARDIA CIVIL 1º MIGUEL ÁNGEL DUARTE SÁNCHEZ", "Orden": 7},
     {"Categoria": "JEFE DE TURNO", "TIP": "P58735T", "Nombre": "GUARDIA CIVIL MIGUEL MARTÍN DÍAZ", "Orden": 8},
     
+    # 2. RESGUARDO FISCAL (GRUPO FIJO)
     {"Categoria": "RESGUARDO FISCAL", "TIP": "S49454H", "Nombre": "FRANCISCO JOSÉ GARCÍA TEMBLADOR", "Orden": 1},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "C65480C", "Nombre": "RAFAEL ORTÍZ GONZALEZ", "Orden": 2},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "F10173Y", "Nombre": "ALBERTO FRANCISCO BERLANGA CRUZADO", "Orden": 3},
@@ -202,6 +201,7 @@ plantilla_oficial = pd.DataFrame([
     {"Categoria": "RESGUARDO FISCAL", "TIP": "N23723F", "Nombre": "CELIA DOMÍNGUEZ BARRANCO", "Orden": 8},
     {"Categoria": "RESGUARDO FISCAL", "TIP": "X10503B", "Nombre": "IVÁN JUÁREZ VERDUGO", "Orden": 9},
 
+    # 3. RESTO DE PLANTILLA DE LA UNIDAD
     {"Categoria": "RESTO PLANTILLA", "TIP": "R49856I", "Nombre": "AHMED RACHID, ZOHAIR", "Orden": 0},
     {"Categoria": "RESTO PLANTILLA", "TIP": "I51444D", "Nombre": "ALBA RAMAJO, ANDREA (TENIENTE)", "Orden": 0},
     {"Categoria": "RESTO PLANTILLA", "TIP": "L26693P", "Nombre": "ALBAÑIL ALBAÑIL, ALEJANDRO", "Orden": 0},
@@ -299,6 +299,8 @@ if 'cuadrante_generado' not in st.session_state:
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
     st.session_state.usuario_actual = ""
+if "forzar_cambio_clave" not in st.session_state:
+    st.session_state.forzar_cambio_clave = False
 
 # ==========================================
 # 4. PANTALLA DE LOGIN RESTRINGIDO
@@ -322,41 +324,77 @@ if not st.session_state.autenticado:
         submit_btn = st.form_submit_button("Desbloquear Sistema", type="primary")
         
         if submit_btn:
+            # LÓGICA DE ACCESO RESTRINGIDO A LOS 9 COMPONENTES DE RESGUARDO FISCAL (+ ADMIN opcional)
             df_autorizados = st.session_state.efectivos[
-                st.session_state.efectivos['Categoria'].isin(['JEFE DE TURNO', 'RESGUARDO FISCAL'])
+                st.session_state.efectivos['Categoria'] == 'RESGUARDO FISCAL'
             ]
             tips_validos = [
                 tip.upper() for tip in df_autorizados['TIP'].tolist()
-                if tip.upper() not in ["XX", "", "XXXXXXXX", "X10503B"]
+                if tip.upper() not in ["XX", "", "XXXXXXXX"]
             ]
             
             if usuario_input == "ADMIN" and pwd_input == "Puerto2026*":
                 st.session_state.autenticado = True
                 st.session_state.usuario_actual = "ADMIN"
+                st.session_state.forzar_cambio_clave = False
                 st.rerun()
                 
             elif usuario_input in tips_validos:
                 pwd_hash = hashlib.sha256(pwd_input.encode()).hexdigest()
+                hash_por_defecto = hashlib.sha256("Puerto2026*".encode()).hexdigest()
                 creds = st.session_state.credenciales
                 
                 if usuario_input in creds:
                     if pwd_hash == creds[usuario_input]:
                         st.session_state.autenticado = True
                         st.session_state.usuario_actual = usuario_input
+                        # Si mágicamente su contraseña guardada sigue siendo la de por defecto, forzar el cambio
+                        if creds[usuario_input] == hash_por_defecto:
+                            st.session_state.forzar_cambio_clave = True
+                        else:
+                            st.session_state.forzar_cambio_clave = False
                         st.rerun()
                     else:
                         st.error("❌ Contraseña incorrecta.")
                 else:
-                    hash_por_defecto = hashlib.sha256("Puerto2026*".encode()).hexdigest()
+                    # Primer acceso para el usuario
                     if pwd_hash == hash_por_defecto:
                         st.session_state.autenticado = True
                         st.session_state.usuario_actual = usuario_input
+                        st.session_state.forzar_cambio_clave = True # OBLIGAMOS A CAMBIARLA AL ENTRAR
                         st.rerun()
                     else:
                         st.error("❌ Primer acceso: Utiliza la contraseña inicial por defecto (Puerto2026*).")
             else:
-                st.error("❌ El TIP introducido no consta en la base de datos o no tiene permisos de acceso.")
+                st.error("❌ No tienes permisos de acceso. Solo personal autorizado del Grupo Fijo.")
     
+    st.stop()
+
+
+# ==========================================
+# PANTALLA FORZOSA DE CAMBIO DE CONTRASEÑA
+# ==========================================
+if st.session_state.forzar_cambio_clave:
+    st.warning("⚠️ **Por motivos de seguridad LOPD, es OBLIGATORIO cambiar tu contraseña antes de acceder a la aplicación.**")
+    with st.form("form_fuerza_pass"):
+        new_pass_force = st.text_input("Nueva contraseña (mínimo 6 caracteres):", type="password")
+        new_pass2_force = st.text_input("Repetir nueva contraseña:", type="password")
+        btn_cambiar_force = st.form_submit_button("Actualizar y Entrar", type="primary")
+        
+        if btn_cambiar_force:
+            if len(new_pass_force) < 6:
+                st.error("❌ La contraseña debe tener al menos 6 caracteres.")
+            elif new_pass_force != new_pass2_force:
+                st.error("❌ Las contraseñas no coinciden.")
+            elif new_pass_force == "Puerto2026*":
+                st.error("❌ No puedes volver a usar la contraseña por defecto.")
+            else:
+                new_hash_force = hashlib.sha256(new_pass_force.encode()).hexdigest()
+                st.session_state.credenciales[st.session_state.usuario_actual] = new_hash_force
+                guardar_credenciales(st.session_state.credenciales)
+                st.session_state.forzar_cambio_clave = False
+                st.success("✅ Contraseña actualizada correctamente.")
+                st.rerun()
     st.stop()
 
 
@@ -368,7 +406,7 @@ with st.sidebar:
     st.caption("Área Personal Guardia Civil")
     
     with st.expander("🔑 Cambiar mi contraseña"):
-        with st.form("form_pass"):
+        with st.form("form_pass_side"):
             new_pass = st.text_input("Nueva contraseña:", type="password")
             new_pass2 = st.text_input("Repetir contraseña:", type="password")
             btn_cambiar = st.form_submit_button("Actualizar")
@@ -626,7 +664,7 @@ with tab_diario:
         if num_ops == 6:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
         elif num_ops == 5:
-            def_puestos = "PUERTAS, POSTA, PARRILLA, ROMA, POSTA"
+            def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
         elif num_ops == 4:
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
         elif num_ops == 3:
@@ -740,7 +778,7 @@ with tab_diario:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
             if modo_vigilancia:
-                st.caption("🚨 Modo Vigilancia activo: Matriz cruzada de seguridad implementada.")
+                st.caption("🚨 Modo Vigilancia activo: Cadencia perfecta adaptada con puestos de seguridad.")
             else:
                 st.caption("Rueda de Antigüedad para los fijos del grupo y asignación manual libre para los refuerzos de la unidad.")
             
@@ -879,15 +917,15 @@ with tab_diario:
                     fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
                     
                     for idx, h_img in enumerate(franjas_img):
-                        # MATRIZ EXACTA SEGÚN TUS ÚLTIMAS INSTRUCCIONES
                         L = len(lista_puestos)
                         if L > 0:
                             if modo_vigilancia and num_ops == 5 and L == 5:
+                                # Matriz exacta de vigilancia dictada
                                 mapa_vigilancia_5 = {
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
-                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
+                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    3: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 fila_op[h_img] = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
@@ -910,9 +948,9 @@ with tab_diario:
                             if modo_vigilancia and num_ops == 5 and L == 5:
                                 mapa_vigilancia_5 = {
                                     1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
-                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
+                                    2: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+                                    3: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+                                    4: ["PARRILLA", "POSTA", "ROMA", "PUERTAS", "POSTA"],
                                     5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
                                 }
                                 puesto = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
