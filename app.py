@@ -524,25 +524,6 @@ with tab_diario:
     elif len(jefes_seleccionados) >= 2:
         st.caption(f"🎖️ **Jefe de Turno:** {jefes_seleccionados[0]} &nbsp;|&nbsp; **Jefe Adjunto:** {', '.join(jefes_seleccionados[1:])}")
     
-    opciones_confronta_disp = [n for n in nombres_lista_global if n not in jefes_seleccionados]
-    
-    confrontas_seleccionados_raw = st.multiselect(
-        "📝 Confronta (Puedes elegir uno o varios)", 
-        options=opciones_confronta_disp,
-        placeholder="Selecciona uno o varios..."
-    )
-    
-    if confrontas_seleccionados_raw:
-        df_conf_sel = efectivos_global[efectivos_global["Nombre"].isin(confrontas_seleccionados_raw)].copy()
-        df_conf_sel["Orden_Sel"] = [
-            r["Orden"] if r["Categoria"] in ["JEFE DE TURNO", "RESGUARDO FISCAL"] else 100 + confrontas_seleccionados_raw.index(r["Nombre"])
-            for _, r in df_conf_sel.iterrows()
-        ]
-        df_conf_ordenados = df_conf_sel.sort_values(['Cat_Num', 'Orden_Sel'])
-        confrontas_seleccionados = df_conf_ordenados["Nombre"].tolist()
-    else:
-        confrontas_seleccionados = []
-    
     st.write("---")
     st.write("🛡️ **Resguardo Fiscal** (Activa los componentes fijos del grupo en rotación)")
     ops_fijos_seleccionados = []
@@ -550,7 +531,7 @@ with tab_diario:
     df_operativos_solo = efectivos_global[efectivos_global['Categoria'] == 'RESGUARDO FISCAL'].sort_values("Orden")
     
     for _, row in df_operativos_solo.iterrows():
-        if row['Nombre'] not in jefes_seleccionados and row['Nombre'] not in confrontas_seleccionados:
+        if row['Nombre'] not in jefes_seleccionados:
             with st.container(border=True):
                 col_izq, col_der = st.columns([0.8, 0.2])
                 with col_izq:
@@ -563,8 +544,7 @@ with tab_diario:
     st.write("➕ **Resto de Plantilla (Refuerzos para el turno)**")
     df_resto_disponible = efectivos_global[
         (efectivos_global['Categoria'] == 'RESTO PLANTILLA') &
-        (~efectivos_global['Nombre'].isin(jefes_seleccionados)) &
-        (~efectivos_global['Nombre'].isin(confrontas_seleccionados))
+        (~efectivos_global['Nombre'].isin(jefes_seleccionados))
     ].sort_values("Nombre")
     
     nombres_refuerzos_sel = st.multiselect(
@@ -581,11 +561,19 @@ with tab_diario:
     num_jefes = len(jefes_seleccionados)
     
     st.write("---")
+    # --- CONFRONTA = Nº MÁS ALTO (opcional) ---
+    hay_confronta_sel = st.toggle("📝 ¿Hay CONFRONTA hoy? (La hace el Nº más alto del reparto)")
+    hay_confronta = bool(hay_confronta_sel and num_ops >= 2)
+    if hay_confronta_sel and num_ops < 2:
+        st.caption("⚠️ Necesitas al menos 2 operativos para que haya confronta.")
+    # Personas que rotan por puestos (si hay confronta, el Nº más alto queda fuera)
+    num_puestos = num_ops - 1 if hay_confronta else num_ops
+    
     modo_vigilancia = st.toggle("🚨 MODO VIGILANCIA: Activar puesto provisional (PARRILLA)")
     
-    if num_ops == 3 and num_jefes >= 1:
+    if num_puestos == 3 and num_jefes >= 1:
         indice_defecto = 0
-    elif num_ops == 5:
+    elif num_puestos == 5:
         indice_defecto = 1
     else:
         indice_defecto = 2
@@ -599,27 +587,27 @@ with tab_diario:
     )
     
     if modo_vigilancia:
-        if num_ops == 6:
+        if num_puestos == 6:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, POSTA, ROMA"
-        elif num_ops == 5:
+        elif num_puestos == 5:
             def_puestos = "PUERTAS, POSTA, PARRILLA, POSTA, ROMA"
-        elif num_ops == 4:
+        elif num_puestos == 4:
             def_puestos = "PUERTAS, PARRILLA, POSTA, ROMA"
-        elif num_ops == 3:
+        elif num_puestos == 3:
             def_puestos = "PUERTAS, PARRILLA, ROMA"
         else:
-            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 3)) + ", PARRILLA, ROMA"
+            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_puestos - 3)) + ", PARRILLA, ROMA"
     else:
-        if num_ops == 6:
+        if num_puestos == 6:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, POSTA, ROMA"
-        elif num_ops == 5:
+        elif num_puestos == 5:
             def_puestos = "PUERTAS, POSTA, POSTA, POSTA, ROMA"
-        elif num_ops == 4:
+        elif num_puestos == 4:
             def_puestos = "PUERTAS, POSTA, POSTA, ROMA"
-        elif num_ops == 3:
+        elif num_puestos == 3:
             def_puestos = "PUERTAS, POSTA, ROMA"
         else:
-            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_ops - 2)) + ", ROMA"
+            def_puestos = "PUERTAS, " + ", ".join(["POSTA"] * max(0, num_puestos - 2)) + ", ROMA"
         
     puestos_input = col4.text_input("📍 Puestos", value=def_puestos)
     lista_puestos = [p.strip() for p in puestos_input.split(",") if p.strip()]
@@ -712,7 +700,23 @@ with tab_diario:
         plt.close()
         return buf
 
-    if num_ops > 0 or num_jefes > 0 or len(confrontas_seleccionados) > 0:
+    MAPA_VIGILANCIA_5 = {
+        1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
+        2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
+        3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
+        4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
+        5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
+    }
+
+    def puesto_para(n_asignado, idx):
+        L = len(lista_puestos)
+        if L == 0:
+            return ""
+        if modo_vigilancia and num_puestos == 5 and L == 5:
+            return MAPA_VIGILANCIA_5.get(n_asignado, lista_puestos)[idx]
+        return lista_puestos[(n_asignado - 1 + idx) % L]
+
+    if num_ops > 0 or num_jefes > 0:
         if num_ops > 0:
             st.write("### 🔢 Asignación de Puestos")
             if modo_vigilancia:
@@ -769,7 +773,10 @@ with tab_diario:
             else:
                 df_ops = df_fijos
 
+            # Sugerido: el primero de la rueda recibe el Nº más alto (num_ops) y así hacia abajo
             df_ops["Sugerido"] = range(num_ops, 0, -1)
+            # Se muestran del Nº más alto al más bajo
+            df_ops = df_ops.sort_values("Sugerido", ascending=False).reset_index(drop=True)
             
             asignaciones_usuario = []
             numeros_disponibles = list(range(1, num_ops + 1))
@@ -813,9 +820,18 @@ with tab_diario:
                 st.error("⚠️ ¡Atención! No puedes repetir el mismo número asignado entre distintos componentes.")
                 boton_generar = False
             else:
+                # --- RESUMEN DEL REPARTO (del Nº más alto al más bajo) ---
+                st.write("#### 📊 Reparto resultante (del Nº más alto al más bajo)")
+                for _, r in numeros_editados.sort_values("Nº Asignado", ascending=False).iterrows():
+                    if hay_confronta and r["Nº Asignado"] == num_ops:
+                        st.markdown(f"**Nº {r['Nº Asignado']}** · {r['Nombre']} → 📝 **CONFRONTA**")
+                    else:
+                        st.markdown(f"**Nº {r['Nº Asignado']}** · {r['Nombre']}")
+                
                 boton_generar = st.button("🚀 Confirmar Rotación y Generar", type="primary")
                 
             if boton_generar:
+                # El historial SIEMPRE se actualiza con el Nº más alto del grupo fijo (haya o no confronta)
                 fijos_hoy = numeros_editados[~numeros_editados["Es_Refuerzo"]]
                 if not fijos_hoy.empty:
                     max_num_fijo = fijos_hoy["Nº Asignado"].max()
@@ -824,6 +840,20 @@ with tab_diario:
                     guardar_memoria(st.session_state.historial)
                 else:
                     nombre_max = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]["Nombre"]
+                
+                # Confronta = Nº más alto (solo si se ha activado)
+                nombre_confronta = None
+                tip_confronta = None
+                if hay_confronta:
+                    fila_conf = numeros_editados[numeros_editados["Nº Asignado"] == num_ops].iloc[0]
+                    nombre_confronta = fila_conf["Nombre"]
+                    tip_confronta = fila_conf["TIP"]
+                
+                # Quienes rotan por puestos
+                if nombre_confronta:
+                    numeros_puestos = numeros_editados[numeros_editados["Nombre"] != nombre_confronta]
+                else:
+                    numeros_puestos = numeros_editados
                 
                 franjas_img, franjas_texto = calcular_franjas(tipo_turno, intervalo_horas)
                 titulo_cuadrante = f"CUADRANTE {fecha_servicio.strftime('%d/%m/%Y')} - {tipo_turno.upper()}"
@@ -838,64 +868,28 @@ with tab_diario:
                     fila_fija = {"Nº": "-", "TIP": tip_jefe, "Nombre": nombre_jefe, "Rol": rol_jefe}
                     for h in franjas_img: fila_fija[h] = "-"
                     cuadrante_final.append(fila_fija)
-                    
-                for nombre_conf in confrontas_seleccionados:
-                    tip_conf = efectivos_global[efectivos_global["Nombre"] == nombre_conf].iloc[0]["TIP"]
-                    texto += f"CONFRONTA: {nombre_conf} ({tip_conf})\n"
-                    fila_fija = {"Nº": "-", "TIP": tip_conf, "Nombre": nombre_conf, "Rol": "CONFRONTA"}
+                
+                if nombre_confronta:
+                    texto += f"CONFRONTA: {nombre_confronta} ({tip_confronta})\n"
+                    fila_fija = {"Nº": "-", "TIP": tip_confronta, "Nombre": nombre_confronta, "Rol": "CONFRONTA"}
                     for h in franjas_img: fila_fija[h] = "-"
                     cuadrante_final.append(fila_fija)
                 
-                if jefes_seleccionados or confrontas_seleccionados:
+                if jefes_seleccionados or nombre_confronta:
                     texto += "\n"
                 
-                for _, row in numeros_editados.sort_values("Nº Asignado", ascending=True).iterrows():
-                    tip_op = row["TIP"]
+                for _, row in numeros_puestos.sort_values("Nº Asignado", ascending=True).iterrows():
                     n_asignado = row['Nº Asignado']
-                    fila_op = {"Nº": str(n_asignado), "TIP": tip_op, "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
-                    
+                    fila_op = {"Nº": str(n_asignado), "TIP": row["TIP"], "Nombre": row["Nombre"], "Rol": "RESGUARDO FISCAL"}
                     for idx, h_img in enumerate(franjas_img):
-                        L = len(lista_puestos)
-                        if L > 0:
-                            if modo_vigilancia and num_ops == 5 and L == 5:
-                                mapa_vigilancia_5 = {
-                                    1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
-                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
-                                    5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
-                                }
-                                fila_op[h_img] = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
-                            else:
-                                puesto = lista_puestos[(n_asignado - 1 + idx) % L]
-                                fila_op[h_img] = puesto
-                        else:
-                            fila_op[h_img] = ""
-                    
+                        fila_op[h_img] = puesto_para(n_asignado, idx)
                     cuadrante_final.append(fila_op)
                 
-                for _, row in numeros_editados.sort_values(["Es_Refuerzo", "Orden", "Nombre"], ascending=[True, True, True]).iterrows():
-                    tip_op = row["TIP"]
+                for _, row in numeros_puestos.sort_values(["Es_Refuerzo", "Orden", "Nombre"], ascending=[True, True, True]).iterrows():
                     n_asignado = row['Nº Asignado']
-                    
-                    texto += f"{row['Nombre']} ({tip_op})\n"
+                    texto += f"{row['Nombre']} ({row['TIP']})\n"
                     for idx, h_txt in enumerate(franjas_texto):
-                        L = len(lista_puestos)
-                        if L > 0:
-                            if modo_vigilancia and num_ops == 5 and L == 5:
-                                mapa_vigilancia_5 = {
-                                    1: ["PUERTAS", "POSTA", "PARRILLA", "POSTA", "ROMA"],
-                                    2: ["POSTA", "ROMA", "PUERTAS", "POSTA", "PARRILLA"],
-                                    3: ["POSTA", "PARRILLA", "POSTA", "ROMA", "PUERTAS"],
-                                    4: ["PARRILLA", "POSTA", "ROMA", "POSTA", "PUERTAS"],
-                                    5: ["ROMA", "PUERTAS", "POSTA", "PARRILLA", "POSTA"]
-                                }
-                                puesto = mapa_vigilancia_5.get(n_asignado, lista_puestos)[idx]
-                            else:
-                                puesto = lista_puestos[(n_asignado - 1 + idx) % L]
-                        else:
-                            puesto = ""
-                        texto += f"{h_txt}: {puesto}\n"
+                        texto += f"{h_txt}: {puesto_para(n_asignado, idx)}\n"
                     texto += "\n"
                 
                 df_final = pd.DataFrame(cuadrante_final)
@@ -906,7 +900,7 @@ with tab_diario:
                 st.session_state.texto_novedades = texto
                 st.session_state.fecha_generada = fecha_servicio.strftime('%d_%m_%Y')
                 
-                st.success(f"☁️ Guardado con éxito. {nombre_max} pasa al final de la cola.")
+                st.success(f"☁️ Guardado con éxito. {nombre_max} pasa al Nº 1 en el próximo servicio.")
 
         # ==========================================
         # 6. MOSTRAR RESULTADOS GUARDADOS EN MEMORIA
